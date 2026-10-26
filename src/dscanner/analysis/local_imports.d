@@ -6,6 +6,7 @@
 module dscanner.analysis.local_imports;
 
 import dscanner.analysis.base;
+import dscanner.analysis.source_range : qualifiedNameEnd;
 import dscanner.analysis.helpers;
 
 /**
@@ -36,7 +37,7 @@ extern(C++) class LocalImportCheck(AST) : BaseAnalyzerDmd
 		// Look for import foo.bar : x or foo.bar : y = x
 		if (!i.isstatic && localImport && i.names.length == 0 && !i.aliasId)
 		{
-			addErrorMessage(cast(ulong) i.loc.linnum, cast(ulong) i.loc.charnum, KEY, MESSAGE);
+			addErrorMessage([i.loc.fileOffset, qualifiedNameEnd(source, i.loc.fileOffset)], KEY, MESSAGE);
 		}
 	}
 
@@ -76,7 +77,8 @@ unittest
 
 		void foo()
 		{
-			import std.stdio; // [warn]: Local imports should specify the symbols being imported to avoid hiding local symbols.
+			import std.stdio; /+
+			       ^^^^^^^^^ [warn]: Local imports should specify the symbols being imported to avoid hiding local symbols. +/
 			import std.fish : scales, head;
 			import DAGRON = std.experimental.dragon;
 
