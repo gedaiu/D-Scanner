@@ -5,6 +5,7 @@
 module dscanner.analysis.redundant_attributes;
 
 import dscanner.analysis.base;
+import dscanner.analysis.source_range : tokenAt;
 import dscanner.analysis.helpers;
 
 import dmd.dsymbol;
@@ -49,8 +50,8 @@ extern(C++) class RedundantAttributesCheck(AST) : BaseAnalyzerDmd
 	override void visit(AST.VisibilityDeclaration vd)
 	{
 		if (currVisibility == vd.visibility.kind)
-		addErrorMessage(cast(ulong) vd.loc.linnum, cast(ulong) vd.loc.charnum, KEY,
-			"Same visibility attribute used as defined on line %u.".format(currLine));
+		addErrorMessage([vd.loc.fileOffset, tokenAt(source, vd.loc.fileOffset).end], KEY,
+			"same visibility attribute used as defined on line %u.".format(currLine));
 		Visibility.Kind prevVisibility = currVisibility;
 		uint prevLine = currLine;
 		currVisibility = vd.visibility.kind;
@@ -72,72 +73,83 @@ version(unittest)
 
 unittest
 {
+	import dscanner.analysis.helpers : assertAnalyzerWarnings = assertAnalyzerWarningsDMD;
 	StaticAnalysisConfig sac = disabledConfig();
 	sac.redundant_attributes_check = Check.enabled;
 
 	// test labels vs. block attributes
-	assertAnalyzerWarningsDMD(q{
+	assertAnalyzerWarnings(q{
 class C
 {
 private:
-	private int blah; // [warn]: Same visibility attribute used as defined on line 4.
+	private int blah; /+
+	^^^^^^^ [warn]: same visibility attribute used as defined on line 4. +/
 protected
 {
-	protected int blah; // [warn]: Same visibility attribute used as defined on line 6.
+	protected int blah; /+
+	^^^^^^^^^ [warn]: same visibility attribute used as defined on line 7. +/
 }
-	private int blah; // [warn]: Same visibility attribute used as defined on line 4.
+	private int blah; /+
+	^^^^^^^ [warn]: same visibility attribute used as defined on line 4. +/
 }}c, sac);
 
 	// test labels vs. block attributes
-	assertAnalyzerWarningsDMD(q{
+	assertAnalyzerWarnings(q{
 class C
 {
 	private:
-	private: // [warn]: Same visibility attribute used as defined on line 4.
+	private: /+
+	^^^^^^^ [warn]: same visibility attribute used as defined on line 4. +/
 	public:
 		private int a;
-		public int b; // [warn]: Same visibility attribute used as defined on line 6.
-		public // [warn]: Same visibility attribute used as defined on line 6.
+		public int b; /+
+		^^^^^^ [warn]: same visibility attribute used as defined on line 7. +/
+		public /+
+		^^^^^^ [warn]: same visibility attribute used as defined on line 7. +/
 		{
 			int c;
 		}
 }}c, sac);
 
 	// test scopes
-	assertAnalyzerWarningsDMD(q{
+	assertAnalyzerWarnings(q{
 class C
 {
 private:
-	private int foo2; // [warn]: Same visibility attribute used as defined on line 4.
-	private void foo() // [warn]: Same visibility attribute used as defined on line 4.
+	private int foo2; /+
+	^^^^^^^ [warn]: same visibility attribute used as defined on line 4. +/
+	private void foo() /+
+	^^^^^^^ [warn]: same visibility attribute used as defined on line 4. +/
 	{
 		int blah;
 	}
 }}c, sac);
 
 	// check duplicated visibility attributes
-	assertAnalyzerWarningsDMD(q{
+	assertAnalyzerWarnings(q{
 class C
 {
 private:
 	public int a;
-private: // [warn]: Same visibility attribute used as defined on line 4.
+private: /+
+^^^^^^^ [warn]: same visibility attribute used as defined on line 4. +/
 }}c, sac);
 
 	// test conditional compilation
-	assertAnalyzerWarningsDMD(q{
+	assertAnalyzerWarnings(q{
 class C
 {
 version(unittest)
 {
 	private:
-	private int foo; // [warn]: Same visibility attribute used as defined on line 6.
+	private int foo; /+
+	^^^^^^^ [warn]: same visibility attribute used as defined on line 6. +/
 }
 private int foo2;
 }}c, sac);
 
 // test scopes
-	assertAnalyzerWarningsDMD(q{
+	assertAnalyzerWarnings(q{
 class C
 {
 public:
@@ -149,18 +161,20 @@ public:
 	{
 		public int b;
 	}
-	public int b; // [warn]: Same visibility attribute used as defined on line 4.
+	public int b; /+
+	^^^^^^ [warn]: same visibility attribute used as defined on line 4. +/
 }}c, sac);
 }
 
 // test other attribute (not yet implemented, thus shouldn't trigger warnings)
 unittest
 {
+	import dscanner.analysis.helpers : assertAnalyzerWarnings = assertAnalyzerWarningsDMD;
 	StaticAnalysisConfig sac = disabledConfig();
 	sac.redundant_attributes_check = Check.enabled;
 
 	// test labels vs. block attributes
-	assertAnalyzerWarningsDMD(q{
+	assertAnalyzerWarnings(q{
 class C
 {
 @safe:
