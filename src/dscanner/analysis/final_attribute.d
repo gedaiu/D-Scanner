@@ -8,10 +8,7 @@ module dscanner.analysis.final_attribute;
 import dscanner.analysis.base;
 import dmd.astcodegen;
 import dmd.dsymbol;
-import dmd.tokens : Token, TOK;
-import std.algorithm;
-import std.array;
-import std.range;
+import dmd.tokens : TOK;
 import std.string : format;
 
 /**
@@ -41,8 +38,6 @@ extern (C++) class FinalAttributeChecker(AST) : BaseAnalyzerDmd
 	bool _blockFinal;
 	Parent _parent = Parent.module_;
 
-	Token[] tokens;
-
 	enum pushPopPrivate = q{
 		const bool wasPrivate = _private;
 		_private = false;
@@ -52,24 +47,6 @@ extern (C++) class FinalAttributeChecker(AST) : BaseAnalyzerDmd
 	extern(D) this(string fileName)
 	{
 		super(fileName);
-		lexFile();
-	}
-
-	private void lexFile()
-	{
-		import dscanner.utils : readFile;
-		import dmd.errorsink : ErrorSinkNull;
-		import dmd.globals : global;
-		import dmd.lexer : Lexer;
-
-		auto bytes = readFile(fileName) ~ '\0';
-		__gshared ErrorSinkNull errorSinkNull;
-		if (!errorSinkNull)
-			errorSinkNull = new ErrorSinkNull;
-
-		scope lexer = new Lexer(null, cast(char*) bytes, 0, bytes.length, 0, 0, errorSinkNull, &global.compileEnv);
-		while (lexer.nextToken() != TOK.endOfFile)
-			tokens ~= lexer.token;
 	}
 
 	override void visit(AST.StorageClassDeclaration scd)
@@ -94,11 +71,9 @@ extern (C++) class FinalAttributeChecker(AST) : BaseAnalyzerDmd
 			auto sd = member.isStructDeclaration();
 			auto ud = member.isUnionDeclaration();
 
-			if ((scd.stc & STC.final_) != 0)
+			const finalTokenOffset = (scd.stc & STC.final_) ? ownFinalOffset(member.loc.fileOffset) : size_t.max;
+			if (finalTokenOffset != size_t.max)
 			{
-				auto finalTokenOffset = tokens.filter!(t => t.loc.linnum == member.loc.linnum)
-					.find!(t => t.value == TOK.final_)
-					.front.loc.fileOffset;
 
 				AutoFix fix = AutoFix.replacement(finalTokenOffset, finalTokenOffset + 6, "", "Remove final attribute");
 
@@ -124,11 +99,9 @@ extern (C++) class FinalAttributeChecker(AST) : BaseAnalyzerDmd
         {
 			auto fd = member.isFuncDeclaration();
 
-			if (fd && (fd.storage_class & STC.final_))
+			const finalTokenOffset = fd && (fd.storage_class & STC.final_) ? ownFinalOffset(fd.loc.fileOffset) : size_t.max;
+			if (finalTokenOffset != size_t.max)
 			{
-				auto finalTokenOffset = tokens.filter!(t => t.loc.linnum == fd.loc.linnum)
-					.find!(t => t.value == TOK.final_)
-					.front.loc.fileOffset;
 
 				AutoFix fix = AutoFix.replacement(finalTokenOffset, finalTokenOffset + 6, "", "Remove final attribute");
 
@@ -158,17 +131,31 @@ extern (C++) class FinalAttributeChecker(AST) : BaseAnalyzerDmd
 		_inFinalClass = false;
 	}
 
+	/**
+	 * Offset of the `final` written on the declaration at `offset` itself, or
+	 * `size_t.max` when it comes from an enclosing `final:` or `final { }`.
+	 */
+	extern (D) private size_t ownFinalOffset(size_t offset)
+	{
+		import dscanner.analysis.source_range : declarationStart, tokensFrom;
+
+		foreach (token; tokensFrom(source, declarationStart(source, offset)))
+		{
+			if (token.start >= offset)
+				break;
+			if (token.value == TOK.final_)
+				return token.start;
+		}
+		return size_t.max;
+	}
+
 	override void visit(AST.FuncDeclaration fd)
 	{
 		import dmd.astenums : STC;
 
-		if ((fd.storage_class & STC.final_) != 0)
+		const finalTokenOffset = (fd.storage_class & STC.final_) ? ownFinalOffset(fd.loc.fileOffset) : size_t.max;
+		if (finalTokenOffset != size_t.max)
 		{
-			auto finalTokenOffset = tokens.filter!(t => t.loc.linnum == fd.loc.linnum)
-				.array()
-				.retro()
-				.find!(t => t.value == TOK.final_)
-				.front.loc.fileOffset;
 
 			AutoFix fix = AutoFix.replacement(finalTokenOffset, finalTokenOffset + 6, "", "Remove final attribute");
 
@@ -491,6 +478,25 @@ extern (C++) class FinalAttributeChecker(AST) : BaseAnalyzerDmd
 			static{void foo(){}} // fix
 			void foo(){}
 		}
+	}, sac);
+
+	// final written on another line, or applied by a label or block
+	assertAnalyzerWarningsDMD(q{
+		final
+		class C1 {}
+		class C2
+		{
+			final
+			void f() {}
+		}
+		struct S1
+		{
+			final:
+			void f() {}
+		}
+		final { struct S2 {} }
+		final:
+		struct S3 {}
 	}, sac);
 
 	stderr.writeln("Unittest for FinalAttributeChecker passed.");
