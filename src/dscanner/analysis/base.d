@@ -390,13 +390,19 @@ protected:
 		addErrorMessage(offsets, positions.lines, positions.columns, key, message, autofixes);
 	}
 
-	/// Offsets of the name `symbol` declares.
-	extern (D) size_t[2] nameRange(Dsymbol symbol)
+	/// Offsets of the first identifier spelled `name` at or after `offset`.
+	extern (D) size_t[2] identifierRange(size_t offset, const(char)[] name)
 	{
 		import dscanner.analysis.source_range : findIdentifier;
 
-		const name = findIdentifier(source, symbol.loc.fileOffset, symbol.ident.toString());
-		return [name.start, name.end];
+		const identifier = findIdentifier(source, offset, name);
+		return [identifier.start, identifier.end];
+	}
+
+	/// Offsets of the name `symbol` declares.
+	extern (D) size_t[2] nameRange(Dsymbol symbol)
+	{
+		return identifierRange(symbol.loc.fileOffset, symbol.ident.toString());
 	}
 
 	/// The text of the analyzed file, followed by a 0 byte in memory.
