@@ -71,7 +71,8 @@ extern (C++) class UnusedResultChecker(AST) : BaseAnalyzerDmd
 		import std.algorithm : canFind, endsWith;
 		import std.array : replace;
 
-		auto typeIdent = aliasDecl.type.isTypeIdentifier();
+		// an alias of a symbol, such as a function literal, has no type
+		auto typeIdent = aliasDecl.type ? aliasDecl.type.isTypeIdentifier() : null;
 		if (typeIdent is null)
 			return;
 
@@ -328,6 +329,14 @@ unittest
         {
             void fun() {}
             fun();
+        }
+    }c, sac);
+
+    // an alias of a symbol rather than a type
+    assertAnalyzerWarningsDMD(q{
+        void main()
+        {
+            alias f = (int a) => a;
         }
     }c, sac);
 
