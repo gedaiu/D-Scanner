@@ -73,7 +73,8 @@ unittest
 			this(string name = "kittie") {}
 		}
 
-		class Cat // [warn]: This class has a zero-argument constructor as well as a constructor with default arguments. This can be confusing.
+		class Cat /+
+		      ^^^ [warn]: This class has a zero-argument constructor as well as a constructor with default arguments. This can be confusing. +/
 		{
 			this() {}
 			this(string name = "kittie", int x = 2) {}
