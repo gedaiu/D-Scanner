@@ -111,13 +111,10 @@ extern (C++) class StyleChecker(AST) : BaseAnalyzerDmd
 
 	private extern (D) void addError(Loc loc, string nodeType, string nodeName)
 	{
-		auto fileOffset = cast(ulong) loc.fileOffset;
-		auto lineNum = cast(ulong) loc.linnum;
-		auto charNum = cast(ulong) loc.charnum;
-		ulong[2] index = [fileOffset, fileOffset + nodeName.length];
-		ulong[2] lines = [lineNum, lineNum];
-		ulong[2] columns = [charNum, charNum + nodeName.length];
-		addErrorMessage(index, lines, columns, KEY, MSG.format(nodeType, nodeName));
+		import dscanner.analysis.source_range : findIdentifier;
+
+		const name = findIdentifier(source, loc.fileOffset, nodeName);
+		addErrorMessage([name.start, name.end], KEY, MSG.format(nodeType, nodeName));
 	}
 }
 
@@ -131,17 +128,22 @@ unittest
 	sac.style_check = Check.enabled;
 
 	assertAnalyzerWarningsDMD(q{
-		module AMODULE; // [warn]: Module/package name 'AMODULE' does not match style guidelines.
+		module AMODULE; /+
+		       ^^^^^^^ [warn]: Module/package name 'AMODULE' does not match style guidelines. +/
 
 		bool A_VARIABLE; // FIXME:
 		bool a_variable; // ok
 		bool aVariable; // ok
 
 		void A_FUNCTION() {} // FIXME:
-		class cat {} // [warn]: Class name 'cat' does not match style guidelines.
-		interface puma {} // [warn]: Interface name 'puma' does not match style guidelines.
-		struct dog {} // [warn]: Struct name 'dog' does not match style guidelines.
-		enum racoon { a } // [warn]: Enum name 'racoon' does not match style guidelines.
+		class cat {} /+
+		      ^^^ [warn]: Class name 'cat' does not match style guidelines. +/
+		interface puma {} /+
+		          ^^^^ [warn]: Interface name 'puma' does not match style guidelines. +/
+		struct dog {} /+
+		       ^^^ [warn]: Struct name 'dog' does not match style guidelines. +/
+		enum racoon { a } /+
+		     ^^^^^^ [warn]: Enum name 'racoon' does not match style guidelines. +/
 		enum bool something = false;
 		enum bool someThing = false;
 		enum Cat { fritz, }
@@ -159,7 +161,8 @@ unittest
 	assertAnalyzerWarningsDMD(q{
 		extern(Windows)
 		{
-			extern(D) bool Fun2(); // [warn]: Function name 'Fun2' does not match style guidelines.
+			extern(D) bool Fun2(); /+
+			               ^^^^ [warn]: Function name 'Fun2' does not match style guidelines. +/
 			bool Fun3();
 		}
 	}c, sac);
@@ -168,8 +171,10 @@ unittest
 		extern(Windows)
 		{
 			extern(C):
-				extern(D) bool Fun4(); // [warn]: Function name 'Fun4' does not match style guidelines.
-				bool Fun5(); // [warn]: Function name 'Fun5' does not match style guidelines.
+				extern(D) bool Fun4(); /+
+				               ^^^^ [warn]: Function name 'Fun4' does not match style guidelines. +/
+				bool Fun5(); /+
+				     ^^^^ [warn]: Function name 'Fun5' does not match style guidelines. +/
 		}
 	}c, sac);
 
@@ -179,12 +184,14 @@ unittest
 			bool Fun7();
 		extern(D):
 			void okOkay();
-			void NotReallyOkay(); // [warn]: Function name 'NotReallyOkay' does not match style guidelines.
+			void NotReallyOkay(); /+
+			     ^^^^^^^^^^^^^ [warn]: Function name 'NotReallyOkay' does not match style guidelines. +/
 	}c, sac);
 
 	assertAnalyzerWarningsDMD(q{
 		extern(Windows):
-			bool WinButWithBody(){} // [warn]: Function name 'WinButWithBody' does not match style guidelines.
+			bool WinButWithBody(){} /+
+			     ^^^^^^^^^^^^^^ [warn]: Function name 'WinButWithBody' does not match style guidelines. +/
 	}c, sac);
 
 	stderr.writeln("Unittest for StyleChecker passed.");
