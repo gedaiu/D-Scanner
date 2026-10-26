@@ -9,7 +9,7 @@ GDC := gdc
 LDC := ldc2
 
 DMD_FRONTEND_SRC := \
-	$(shell find dmd/compiler/src/dmd -maxdepth 2 -name "*.d" \
+	$(shell find dmd/compiler/src/dmd -maxdepth 3 -name "*.d" \
 		! -name "mars.d" \
 		! -name "dmsc.d" \
 		! -name "*elf*.d" \
@@ -112,9 +112,9 @@ GITHASH = bin/githash.txt
 FIRST_RUN_FLAG := bin/first_run.flag
 
 ifneq (, $(findstring $(GDC), $(DC)))
-		CONFIG_CMD := $(DC) dmd/config.d -o config && ./config bin VERSION /etc && rm config;
+		CONFIG_CMD := $(DC) dmd/config.d -o config && ./config bin dmd/VERSION /etc && rm config &&
 	else
-		CONFIG_CMD := $(DC) -run dmd/config.d bin VERSION /etc;
+		CONFIG_CMD := $(DC) -run dmd/config.d bin dmd/VERSION /etc &&
 	endif
 
 $(FIRST_RUN_FLAG):
