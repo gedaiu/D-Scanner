@@ -7,7 +7,6 @@ module dscanner.analysis.pokemon;
 
 import std.stdio;
 import dscanner.analysis.base;
-import dscanner.analysis.source_range : findIdentifier;
 import dscanner.analysis.helpers;
 
 /**
@@ -33,12 +32,20 @@ extern(C++) class PokemonExceptionCheck(AST) : BaseAnalyzerDmd
 
 	override void visit(AST.Catch c)
 	{
-		if (c.type.isTypeIdentifier().ident.toString() == "Error" || 
-			c.type.isTypeIdentifier().ident.toString() == "Throwable")
-			{
-				const typeName = findIdentifier(source, c.loc.fileOffset, c.type.isTypeIdentifier().ident.toString());
-				addErrorMessage([typeName.start, typeName.end], KEY, MESSAGE);
-			}
+		// `catch` without a type catches everything
+		if (c.type is null)
+		{
+			addErrorMessage([c.loc.fileOffset, c.loc.fileOffset + "catch".length], KEY, MESSAGE);
+			return;
+		}
+
+		auto typeIdentifier = c.type.isTypeIdentifier();
+		if (typeIdentifier is null)
+			return;
+
+		const typeName = typeIdentifier.ident.toString();
+		if (typeName == "Error" || typeName == "Throwable")
+			addErrorMessage(identifierRange(c.loc.fileOffset, typeName), KEY, MESSAGE);
 	}
 
 private:
@@ -83,6 +90,11 @@ unittest
 			}
 			catch (shared(Error) err) /+
 			              ^^^^^ [warn]: Catching Error or Throwable is almost always a bad idea. +/
+			{
+
+			}
+			catch /+
+			^^^^^ [warn]: Catching Error or Throwable is almost always a bad idea. +/
 			{
 
 			}
