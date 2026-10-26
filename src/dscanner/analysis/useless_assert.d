@@ -6,6 +6,7 @@
 module dscanner.analysis.useless_assert;
 
 import dscanner.analysis.base;
+import dscanner.analysis.source_range : extentOf;
 import dscanner.analysis.helpers;
 
 import std.stdio;
@@ -28,14 +29,14 @@ extern(C++) class UselessAssertCheck(AST) : BaseAnalyzerDmd
 	{
 		auto ie = ae.e1.isIntegerExp();
 		if (ie && ie.getInteger() != 0)
-			addErrorMessage(cast(ulong) ae.loc.linnum, cast(ulong) ae.loc.charnum, KEY, MESSAGE);
+			addErrorMessage(extentOf(source, ae.e1), KEY, MESSAGE);
 
 		auto re = ae.e1.isRealExp();
 		if (re && re.value != 0)
-			addErrorMessage(cast(ulong) ae.loc.linnum, cast(ulong) ae.loc.charnum, KEY, MESSAGE);
+			addErrorMessage(extentOf(source, ae.e1), KEY, MESSAGE);
 		
 		if (ae.e1.isStringExp() || ae.e1.isArrayLiteralExp() || ae.e1.isAssocArrayLiteralExp())
-			addErrorMessage(cast(ulong) ae.loc.linnum, cast(ulong) ae.loc.charnum, KEY, MESSAGE);
+			addErrorMessage(extentOf(source, ae.e1), KEY, MESSAGE);
 	}
 
 private:
@@ -56,9 +57,12 @@ unittest
 	assertAnalyzerWarnings(q{
 unittest
 {
-	assert(true); // [warn]: Assert condition is always true.
-	assert(1); // [warn]: Assert condition is always true.
-	assert([10]); // [warn]: Assert condition is always true.
+	assert(true); /+
+	       ^^^^ [warn]: Assert condition is always true. +/
+	assert(1); /+
+	       ^ [warn]: Assert condition is always true. +/
+	assert([10]); /+
+	       ^^^^ [warn]: Assert condition is always true. +/
 	assert(false);
 	assert(0);
 	assert(0.0L);
