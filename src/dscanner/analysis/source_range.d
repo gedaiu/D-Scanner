@@ -228,20 +228,35 @@ size_t[2] extentOf(const(char)[] source, Expression expression)
 
 		override void visit(Expression e)
 		{
+			// literals dmd adds itself, such as the 1 of `i++`, have no location
+			if (!e.loc.isValid)
+				return;
+
 			const offset = e.loc.fileOffset;
 			if (offset < first)
 				first = offset;
-			// the identifier of `a.b` has no location of its own
-			const lastOffset = e.isDotIdExp()
-				? tokenAfter(source, findToken(source, extentOf(source, e.isDotIdExp().e1)[1], TOK.dot).start).start
-				: offset;
+			const lastOffset = lastTokenStart(e, offset);
 			if (lastOffset > last)
 				last = lastOffset;
+		}
+
+		/// Where the last token of `e` itself starts, when it is not at `e.loc`.
+		extern (D) size_t lastTokenStart(Expression e, size_t offset)
+		{
+			// the identifier of `a.b` has no location of its own
+			if (auto dotId = e.isDotIdExp())
+				return tokenAfter(source, findToken(source, extentOf(source, dotId.e1)[1], TOK.dot).start).start;
+			// the operator of `i++` follows its operand
+			if (auto post = e.isPostExp())
+				return tokenAt(source, extentOf(source, post.e1)[1]).start;
+			return offset;
 		}
 	}
 
 	scope bounds = new LocationBounds(source);
 	walkPostorder(expression, bounds);
+	if (bounds.first == size_t.max)
+		return [0, 0];
 	return [bounds.first, balancedEnd(source, bounds.first, bounds.last)];
 }
 

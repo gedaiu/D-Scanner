@@ -161,5 +161,19 @@ unittest
 	}
 	}c, sac);
 
+	// `i++` contains a literal without a source location
+	assertAnalyzerWarnings(q{
+	unittest {
+		int i;
+		assert(i++ == 0); /+
+		^^^^^^^^^^^^^^^^ [warn]: %s +/
+		assert(i++); /+
+		^^^^^^^^^^^ [warn]: %s +/
+	}
+	}c.format(
+		AssertWithoutMessageCheck!ASTCodegen.MESSAGE,
+		AssertWithoutMessageCheck!ASTCodegen.MESSAGE,
+	), sac);
+
 	stderr.writeln("Unittest for AssertWithoutMessageCheck passed.");
 }
