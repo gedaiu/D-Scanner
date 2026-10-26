@@ -2,6 +2,7 @@ module dscanner.analysis.constructors;
 
 import std.stdio;
 import dscanner.analysis.base;
+import dscanner.analysis.source_range : findIdentifier;
 import dscanner.analysis.helpers;
 
 extern(C++) class ConstructorCheck(AST) : BaseAnalyzerDmd
@@ -49,8 +50,8 @@ extern(C++) class ConstructorCheck(AST) : BaseAnalyzerDmd
 
 		if (hasNoArgConstructor && hasDefaultArgConstructor)
 		{
-			addErrorMessage(cast(ulong) d.loc.linnum,
-					cast(ulong) d.loc.charnum, KEY, MESSAGE);
+			const name = findIdentifier(source, d.loc.fileOffset, d.ident.toString());
+			addErrorMessage([name.start, name.end], KEY, MESSAGE);
 		}
 	}
 	
@@ -67,7 +68,8 @@ unittest
 	StaticAnalysisConfig sac = disabledConfig();
 	sac.constructor_check = Check.enabled;
 	assertAnalyzerWarningsDMD(q{
-		class Cat // [warn]: This class has a zero-argument constructor as well as a constructor with default arguments. This can be confusing.
+		class Cat /+
+		      ^^^ [warn]: This class has a zero-argument constructor as well as a constructor with default arguments. This can be confusing. +/
 		{
 			this() {}
 			this(string name = "kittie") {}
