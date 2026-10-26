@@ -6,6 +6,7 @@
 module dscanner.analysis.auto_ref_assignment;
 
 import dscanner.analysis.base;
+import dscanner.analysis.source_range : extentOf;
 
 /**
  * Checks for assignment to auto-ref function parameters.
@@ -56,7 +57,7 @@ extern(C++) class AutoRefAssignmentCheck(AST) : BaseAnalyzerDmd
 		auto ie = ae.e1.isIdentifierExp();
 
 		if (ie && inTemplateScope && autoRefParams.canFind(ie.ident.toString()))
-			addErrorMessage(cast(ulong) ae.loc.linnum, cast(ulong) ae.loc.charnum, KEY,
+			addErrorMessage(extentOf(source, ae), KEY,
 				"Assignment to auto-ref function parameter.");
 	}
 
@@ -89,7 +90,8 @@ unittest
 	assertAnalyzerWarnings(q{
 		int doStuff(T)(auto ref int a)
 		{
-			a = 10; // [warn]: Assignment to auto-ref function parameter.
+			a = 10; /+
+			^^^^^^ [warn]: Assignment to auto-ref function parameter. +/
 		}
 
 		int doStuff(T)(ref int a)
