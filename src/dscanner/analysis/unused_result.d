@@ -115,9 +115,7 @@ extern (C++) class UnusedResultChecker(AST) : BaseAnalyzerDmd
 		{
 			if (hasUnusedResult(statement))
 			{
-				auto lineNum = cast(ulong) statement.loc.linnum;
-				auto charNum = cast(ulong) statement.loc.charnum;
-				addErrorMessage(lineNum, charNum, KEY, MSG);
+				addErrorMessage(calleeRange(statement), KEY, MSG);
 			}
 
 			statement.accept(this);
@@ -128,16 +126,12 @@ extern (C++) class UnusedResultChecker(AST) : BaseAnalyzerDmd
 	{
 		if (hasUnusedResult(ifStatement.ifbody))
 		{
-			auto lineNum = cast(ulong) ifStatement.ifbody.loc.linnum;
-			auto charNum = cast(ulong) ifStatement.ifbody.loc.charnum;
-			addErrorMessage(lineNum, charNum, KEY, MSG);
+			addErrorMessage(calleeRange(ifStatement.ifbody), KEY, MSG);
 		}
 
 		if (ifStatement.elsebody && hasUnusedResult(ifStatement.elsebody))
 		{
-			auto lineNum = cast(ulong) ifStatement.elsebody.loc.linnum;
-			auto charNum = cast(ulong) ifStatement.elsebody.loc.charnum;
-			addErrorMessage(lineNum, charNum, KEY, MSG);
+			addErrorMessage(calleeRange(ifStatement.elsebody), KEY, MSG);
 		}
 
 		super.visit(ifStatement);
@@ -156,6 +150,14 @@ extern (C++) class UnusedResultChecker(AST) : BaseAnalyzerDmd
 
 			super.visit(statement);
 		}
+	}
+
+	/// Range of the function called by a statement `hasUnusedResult` accepted.
+	extern (D) private size_t[2] calleeRange(AST.Statement statement)
+	{
+		import dscanner.analysis.source_range : extentOf;
+
+		return extentOf(source, statement.isExpStatement().exp.isCallExp().e1);
 	}
 
 	private bool hasUnusedResult(AST.Statement statement)
@@ -234,7 +236,8 @@ unittest
         int fun() { return 1; }
         void main()
         {
-            fun(); // [warn]: %s
+            fun(); /+
+            ^^^ [warn]: %s +/
         }
     }c.format(MSG), sac);
 
@@ -249,7 +252,8 @@ unittest
         alias Bar = Foo;
         void main()
         {
-            Bar.get(); // [warn]: %s
+            Bar.get(); /+
+            ^^^^^^^ [warn]: %s +/
             Foo.bar.get();
         }
     }c.format(MSG), sac);
@@ -266,7 +270,8 @@ unittest
         void main()
         {
             int fun() { return 1; }
-            fun(); // [warn]: %s
+            fun(); /+
+            ^^^ [warn]: %s +/
         }
     }c.format(MSG), sac);
 
