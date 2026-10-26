@@ -34,12 +34,13 @@ extern (C++) class UnusedLabelCheck(AST) : BaseAnalyzerDmd
 		if (label is null)
 		{
 			current[ls.ident.toString()] = Label(ls.ident.toString(),
-					ls.loc.linnum, ls.loc.charnum, false);
+					ls.loc.linnum, ls.loc.charnum, false, ls.loc.fileOffset);
 		}
 		else
 		{
 			label.line = ls.loc.linnum;
 			label.column = ls.loc.charnum;
+			label.offset = ls.loc.fileOffset;
 		}
 
 		super.visit(ls);
@@ -125,6 +126,7 @@ private:
 		size_t line;
 		size_t column;
 		bool used;
+		size_t offset;
 	}
 
 	extern (D) Label[const(char)[]][] stack;
@@ -151,7 +153,7 @@ private:
 			}
 			else if (!label.used)
 			{
-				addErrorMessage(label.line, label.column, "dscanner.suspicious.unused_label",
+				addErrorMessage([label.offset, label.offset + label.name.length], "dscanner.suspicious.unused_label",
 						"Label \"" ~ to!string(label.name) ~ "\" is not used.");
 			}
 		}
@@ -180,14 +182,16 @@ unittest
 		int testUnusedLabel()
 		{
 		    int x = 0;
-		A: // [warn]: Label "A" is not used.
+		A: /+
+		^ [warn]: Label "A" is not used. +/
 			if (x) goto B;
 			x++;
 		B:
 			goto C;
 			void foo()
 			{
-			C: // [warn]: Label "C" is not used.
+			C: /+
+			^ [warn]: Label "C" is not used. +/
 				return;
 			}
 		C:
@@ -197,10 +201,12 @@ unittest
 			D:
 				return;
 			}
-		D: // [warn]: Label "D" is not used.
+		D: /+
+		^ [warn]: Label "D" is not used. +/
 			goto E;
 			() {
-			E: // [warn]: Label "E" is not used.
+			E: /+
+			^ [warn]: Label "E" is not used. +/
 				return;
 			}();
 		E:
@@ -209,9 +215,11 @@ unittest
 			F:
 				return;
 			}();
-		F: // [warn]: Label "F" is not used.
+		F: /+
+		^ [warn]: Label "F" is not used. +/
 			return x;
-		G: // [warn]: Label "G" is not used.
+		G: /+
+		^ [warn]: Label "G" is not used. +/
 		}
 	}c, sac);
 
@@ -227,7 +235,8 @@ unittest
 		void testAsm()
 		{
 			asm { mov RAX,1;}
-			lbl: // [warn]: Label "lbl" is not used.
+			lbl: /+
+			^^^ [warn]: Label "lbl" is not used. +/
 		}
 	}c, sac);
 
