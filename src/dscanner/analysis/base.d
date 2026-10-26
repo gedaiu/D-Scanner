@@ -1,7 +1,7 @@
 module dscanner.analysis.base;
 
 import dparse.ast;
-import dparse.lexer : IdType, str, Token, tok;
+import dparse.lexer : IdType, str, tok, Token;
 import std.array;
 import std.container;
 import std.meta : AliasSeq;
