@@ -100,16 +100,13 @@ extern (C++) class FinalAttributeChecker(AST) : BaseAnalyzerDmd
 					.find!(t => t.value == TOK.final_)
 					.front.loc.fileOffset;
 
-				ulong lineNum = cast(ulong) member.loc.linnum;
-				ulong charNum = cast(ulong) member.loc.charnum;
-
 				AutoFix fix = AutoFix.replacement(finalTokenOffset, finalTokenOffset + 6, "", "Remove final attribute");
 
 				if (!ud && sd)
-					addErrorMessage(lineNum, charNum, KEY, MSGB.format(FinalAttributeChecker.MESSAGE.struct_i), [fix]);
+					addErrorMessage([finalTokenOffset, finalTokenOffset + 5], KEY, MSGB.format(FinalAttributeChecker.MESSAGE.struct_i), [fix]);
 
 				if (ud)
-					addErrorMessage(lineNum, charNum, KEY, MSGB.format(FinalAttributeChecker.MESSAGE.union_i), [fix]);
+					addErrorMessage([finalTokenOffset, finalTokenOffset + 5], KEY, MSGB.format(FinalAttributeChecker.MESSAGE.union_i), [fix]);
 			}
 
 			member.accept(this);
@@ -133,16 +130,13 @@ extern (C++) class FinalAttributeChecker(AST) : BaseAnalyzerDmd
 					.find!(t => t.value == TOK.final_)
 					.front.loc.fileOffset;
 
-				ulong lineNum = cast(ulong) fd.loc.linnum;
-				ulong charNum = cast(ulong) fd.loc.charnum;
-
 				AutoFix fix = AutoFix.replacement(finalTokenOffset, finalTokenOffset + 6, "", "Remove final attribute");
 
 				if (_parent == Parent.class_)
-					addErrorMessage(lineNum, charNum, KEY, MSGB.format(FinalAttributeChecker.MESSAGE.class_t), [fix]);
+					addErrorMessage([finalTokenOffset, finalTokenOffset + 5], KEY, MSGB.format(FinalAttributeChecker.MESSAGE.class_t), [fix]);
 
 				if (_parent == Parent.interface_)
-					addErrorMessage(lineNum, charNum, KEY, MSGB.format(FinalAttributeChecker.MESSAGE.interface_t), [fix]);
+					addErrorMessage([finalTokenOffset, finalTokenOffset + 5], KEY, MSGB.format(FinalAttributeChecker.MESSAGE.interface_t), [fix]);
 			}
 		}
 
@@ -176,29 +170,26 @@ extern (C++) class FinalAttributeChecker(AST) : BaseAnalyzerDmd
 				.find!(t => t.value == TOK.final_)
 				.front.loc.fileOffset;
 
-			ulong lineNum = cast(ulong) fd.loc.linnum;
-			ulong charNum = cast(ulong) fd.loc.charnum;
-
 			AutoFix fix = AutoFix.replacement(finalTokenOffset, finalTokenOffset + 6, "", "Remove final attribute");
 
 			if (_parent == Parent.class_ && _private)
-				addErrorMessage(lineNum, charNum, KEY, MSGB.format(FinalAttributeChecker.MESSAGE.class_p), [fix]);
+				addErrorMessage([finalTokenOffset, finalTokenOffset + 5], KEY, MSGB.format(FinalAttributeChecker.MESSAGE.class_p), [fix]);
 			else if (fd.storage_class & STC.static_ || _blockStatic)
-				addErrorMessage(lineNum, charNum, KEY, MSGB.format(FinalAttributeChecker.MESSAGE.class_s), [fix]);
+				addErrorMessage([finalTokenOffset, finalTokenOffset + 5], KEY, MSGB.format(FinalAttributeChecker.MESSAGE.class_s), [fix]);
 			else if (_parent == Parent.class_ && _inFinalClass)
-					addErrorMessage(lineNum, charNum, KEY, MSGB.format(FinalAttributeChecker.MESSAGE.class_f), [fix]);
+					addErrorMessage([finalTokenOffset, finalTokenOffset + 5], KEY, MSGB.format(FinalAttributeChecker.MESSAGE.class_f), [fix]);
 
 			if (_parent == Parent.struct_)
-				addErrorMessage(lineNum, charNum, KEY, MSGB.format(FinalAttributeChecker.MESSAGE.struct_f), [fix]);
+				addErrorMessage([finalTokenOffset, finalTokenOffset + 5], KEY, MSGB.format(FinalAttributeChecker.MESSAGE.struct_f), [fix]);
 
 			if (_parent == Parent.union_)
-				addErrorMessage(lineNum, charNum, KEY, MSGB.format(FinalAttributeChecker.MESSAGE.union_f), [fix]);
+				addErrorMessage([finalTokenOffset, finalTokenOffset + 5], KEY, MSGB.format(FinalAttributeChecker.MESSAGE.union_f), [fix]);
 
 			if (_parent == Parent.module_)
-				addErrorMessage(lineNum, charNum, KEY, MSGB.format(FinalAttributeChecker.MESSAGE.func_g), [fix]);
+				addErrorMessage([finalTokenOffset, finalTokenOffset + 5], KEY, MSGB.format(FinalAttributeChecker.MESSAGE.func_g), [fix]);
 
 			if (_parent == Parent.function_)
-				addErrorMessage(lineNum, charNum, KEY, MSGB.format(FinalAttributeChecker.MESSAGE.func_n), [fix]);
+				addErrorMessage([finalTokenOffset, finalTokenOffset + 5], KEY, MSGB.format(FinalAttributeChecker.MESSAGE.func_n), [fix]);
 		}
 
 		_blockStatic = false;
@@ -334,13 +325,15 @@ extern (C++) class FinalAttributeChecker(AST) : BaseAnalyzerDmd
 	// fail
 
 	assertAnalyzerWarningsDMD(q{
-		final void foo(){} // [warn]: %s
+		final void foo(){} /+
+		^^^^^ [warn]: %s +/
 	}c.format(
 		(FinalAttributeChecker!ASTCodegen).MSGB.format((FinalAttributeChecker!ASTCodegen).MESSAGE.func_g)
 	), sac);
 
 	assertAnalyzerWarningsDMD(q{
-		void foo(){final void foo(){}} // [warn]: %s
+		void foo(){final void foo(){}} /+
+		           ^^^^^ [warn]: %s +/
 	}c.format(
 		(FinalAttributeChecker!ASTCodegen).MSGB.format((FinalAttributeChecker!ASTCodegen).MESSAGE.func_n)
 	), sac);
@@ -349,56 +342,65 @@ extern (C++) class FinalAttributeChecker(AST) : BaseAnalyzerDmd
 		void foo()
 		{
 			static if (true)
-			final class A{ private: final protected void foo(){}} // [warn]: %s
+			final class A{ private: final protected void foo(){}} /+
+			                        ^^^^^ [warn]: %s +/
 		}
 	}c.format(
 		(FinalAttributeChecker!ASTCodegen).MSGB.format((FinalAttributeChecker!ASTCodegen).MESSAGE.class_f)
 	), sac);
 
 	assertAnalyzerWarningsDMD(q{
-		final struct Foo{} // [warn]: %s
+		final struct Foo{} /+
+		^^^^^ [warn]: %s +/
 	}c.format(
 		(FinalAttributeChecker!ASTCodegen).MSGB.format((FinalAttributeChecker!ASTCodegen).MESSAGE.struct_i)
 	), sac);
 
 	assertAnalyzerWarningsDMD(q{
-		final union Foo{} // [warn]: %s
+		final union Foo{} /+
+		^^^^^ [warn]: %s +/
 	}c.format(
 		(FinalAttributeChecker!ASTCodegen).MSGB.format((FinalAttributeChecker!ASTCodegen).MESSAGE.union_i)
 	), sac);
 
 	assertAnalyzerWarningsDMD(q{
-		class Foo{private final void foo(){}} // [warn]: %s
+		class Foo{private final void foo(){}} /+
+		                  ^^^^^ [warn]: %s +/
 	}c.format(
 		(FinalAttributeChecker!ASTCodegen).MSGB.format((FinalAttributeChecker!ASTCodegen).MESSAGE.class_p)
 	), sac);
 
 	assertAnalyzerWarningsDMD(q{
-		class Foo{private: final void foo(){}} // [warn]: %s
+		class Foo{private: final void foo(){}} /+
+		                   ^^^^^ [warn]: %s +/
 	}c.format(
 		(FinalAttributeChecker!ASTCodegen).MSGB.format((FinalAttributeChecker!ASTCodegen).MESSAGE.class_p)
 	), sac);
 
 	assertAnalyzerWarningsDMD(q{
-		interface Foo{final void foo(T)(){}} // [warn]: %s
+		interface Foo{final void foo(T)(){}} /+
+		              ^^^^^ [warn]: %s +/
 	}c.format(
 		(FinalAttributeChecker!ASTCodegen).MSGB.format((FinalAttributeChecker!ASTCodegen).MESSAGE.interface_t)
 	), sac);
 
 	assertAnalyzerWarningsDMD(q{
-		final class Foo{final void foo(){}} // [warn]: %s
+		final class Foo{final void foo(){}} /+
+		                ^^^^^ [warn]: %s +/
 	}c.format(
 		(FinalAttributeChecker!ASTCodegen).MSGB.format((FinalAttributeChecker!ASTCodegen).MESSAGE.class_f)
 	), sac);
 
 	assertAnalyzerWarningsDMD(q{
-		private: final class Foo {public: private final void foo(){}} // [warn]: %s
+		private: final class Foo {public: private final void foo(){}} /+
+		                                          ^^^^^ [warn]: %s +/
 	}c.format(
 		(FinalAttributeChecker!ASTCodegen).MSGB.format((FinalAttributeChecker!ASTCodegen).MESSAGE.class_p)
 	), sac);
 
 	assertAnalyzerWarningsDMD(q{
-		class Foo {final static void foo(){}} // [warn]: %s
+		class Foo {final static void foo(){}} /+
+		           ^^^^^ [warn]: %s +/
 	}c.format(
 		(FinalAttributeChecker!ASTCodegen).MSGB.format((FinalAttributeChecker!ASTCodegen).MESSAGE.class_s)
 	), sac);
@@ -407,7 +409,8 @@ extern (C++) class FinalAttributeChecker(AST) : BaseAnalyzerDmd
 		class Foo
 		{
 			void foo(){}
-			static: final void foo(){} // [warn]: %s
+			static: final void foo(){} /+
+			        ^^^^^ [warn]: %s +/
 		}
 	}c.format(
 		(FinalAttributeChecker!ASTCodegen).MSGB.format((FinalAttributeChecker!ASTCodegen).MESSAGE.class_s)
@@ -417,7 +420,8 @@ extern (C++) class FinalAttributeChecker(AST) : BaseAnalyzerDmd
 		class Foo
 		{
 			void foo(){}
-			static{ final void foo(){}} // [warn]: %s
+			static{ final void foo(){}} /+
+			        ^^^^^ [warn]: %s +/
 			void foo(){}
 		}
 	}c.format(
