@@ -79,13 +79,13 @@ extern(C++) class OpEqualsWithoutToHashCheck(AST) : BaseAnalyzerDmd
 		{
 			string message = ad.ident.toString().dup;
 			message = "'" ~ message ~ "' has method 'opEquals', but not 'toHash'.";
-			addErrorMessage(cast(ulong) ad.loc.linnum, cast(ulong) ad.loc.charnum, KEY, message);
+			addErrorMessage(nameRange(ad), KEY, message);
 		}
 		else if (!hasOpEquals && hasToHash)
 		{
 			string message = ad.ident.toString().dup;
 			message = "'" ~ message ~ "' has method 'toHash', but not 'opEquals'.";
-			addErrorMessage(cast(ulong) ad.loc.linnum, cast(ulong) ad.loc.charnum, KEY, message);
+			addErrorMessage(nameRange(ad), KEY, message);
 		}
 	}
 
@@ -124,7 +124,8 @@ unittest
 		}
 
 		// Fail on class opEquals
-		class Rabbit // [warn]: 'Rabbit' has method 'opEquals', but not 'toHash'.
+		class Rabbit /+
+		      ^^^^^^ [warn]: 'Rabbit' has method 'opEquals', but not 'toHash'. +/
 		{
 			const bool opEquals(Object a, Object b)
 			{
@@ -133,7 +134,8 @@ unittest
 		}
 
 		// Fail on class toHash
-		class Kangaroo // [warn]: 'Kangaroo' has method 'toHash', but not 'opEquals'.
+		class Kangaroo /+
+		      ^^^^^^^^ [warn]: 'Kangaroo' has method 'toHash', but not 'opEquals'. +/
 		{
 			override const hash_t toHash()
 			{
@@ -142,7 +144,8 @@ unittest
 		}
 
 		// Fail on struct opEquals
-		struct Tarantula // [warn]: 'Tarantula' has method 'opEquals', but not 'toHash'.
+		struct Tarantula /+
+		       ^^^^^^^^^ [warn]: 'Tarantula' has method 'opEquals', but not 'toHash'. +/
 		{
 			const bool opEquals(Object a, Object b)
 			{
@@ -151,7 +154,8 @@ unittest
 		}
 
 		// Fail on struct toHash
-		struct Puma // [warn]: 'Puma' has method 'toHash', but not 'opEquals'.
+		struct Puma /+
+		       ^^^^ [warn]: 'Puma' has method 'toHash', but not 'opEquals'. +/
 		{
 			const nothrow @safe hash_t toHash()
 			{
