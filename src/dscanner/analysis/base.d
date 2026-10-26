@@ -384,10 +384,23 @@ protected:
 	/// Reports a diagnostic covering the source bytes `[offsets[0], offsets[1])`.
 	extern (D) void addErrorMessage(size_t[2] offsets, string key, string message, AutoFix[] autofixes = null)
 	{
+		_messages.insert(Message(diagnosticAt(offsets, message), key, getName(), autofixes));
+	}
+
+	/// ditto, with `supplemental` diagnostics pointing at related code.
+	extern (D) void addErrorMessage(size_t[2] offsets, string key, string message,
+		Message.Diagnostic[] supplemental)
+	{
+		_messages.insert(Message(diagnosticAt(offsets, message), supplemental, key, getName()));
+	}
+
+	/// A diagnostic covering the source bytes `[offsets[0], offsets[1])`.
+	extern (D) Message.Diagnostic diagnosticAt(size_t[2] offsets, string message)
+	{
 		import dscanner.analysis.source_range : positionsOf;
 
 		const positions = positionsOf(source, offsets);
-		addErrorMessage(offsets, positions.lines, positions.columns, key, message, autofixes);
+		return Message.Diagnostic.from(fileName, offsets, positions.lines, positions.columns, message);
 	}
 
 	/// Offsets of the first identifier spelled `name` at or after `offset`.
