@@ -32,7 +32,7 @@ extern(C++) class ObjectConstCheck(AST) : BaseAnalyzerDmd
 			{
 				if (isInteresting(fd.ident.toString()) && !isConstFunc(fd) &&
 					!(fd.storage_class & STC.disable))
-						addErrorMessage(cast(ulong) fd.loc.linnum, cast(ulong) fd.loc.charnum, KEY,
+						addErrorMessage(nameRange(fd), KEY,
 							"Methods 'opCmp', 'toHash', 'opEquals', 'opCast', and/or 'toString' are non-const.");
 				
 				member.accept(this);
@@ -45,7 +45,7 @@ extern(C++) class ObjectConstCheck(AST) : BaseAnalyzerDmd
 					{
 						if (isInteresting(fd2.ident.toString()) && !isConstFunc(fd2, scd) &&
 							!(fd2.storage_class & STC.disable))
-								addErrorMessage(cast(ulong) fd2.loc.linnum, cast(ulong) fd2.loc.charnum, KEY,
+								addErrorMessage(nameRange(fd2), KEY,
 									"Methods 'opCmp', 'toHash', 'opEquals', 'opCast', and/or 'toString' are non-const.");
 						
 						smember.accept(this);
@@ -164,22 +164,26 @@ unittest
 			// Will warn, because none are const
 			class Dog
 			{
-				bool opEquals(Object a, Object b) // [warn]: Methods 'opCmp', 'toHash', 'opEquals', 'opCast', and/or 'toString' are non-const.
+				bool opEquals(Object a, Object b) /+
+				     ^^^^^^^^ [warn]: Methods 'opCmp', 'toHash', 'opEquals', 'opCast', and/or 'toString' are non-const. +/
 				{
 					return true;
 				}
 
-				int opCmp(Object o) // [warn]: Methods 'opCmp', 'toHash', 'opEquals', 'opCast', and/or 'toString' are non-const.
+				int opCmp(Object o) /+
+				    ^^^^^ [warn]: Methods 'opCmp', 'toHash', 'opEquals', 'opCast', and/or 'toString' are non-const. +/
 				{
 					return 1;
 				}
 
-				hash_t toHash() // [warn]: Methods 'opCmp', 'toHash', 'opEquals', 'opCast', and/or 'toString' are non-const.
+				hash_t toHash() /+
+				       ^^^^^^ [warn]: Methods 'opCmp', 'toHash', 'opEquals', 'opCast', and/or 'toString' are non-const. +/
 				{
 					return 0;
 				}
 
-				string toString() // [warn]: Methods 'opCmp', 'toHash', 'opEquals', 'opCast', and/or 'toString' are non-const.
+				string toString() /+
+				       ^^^^^^^^ [warn]: Methods 'opCmp', 'toHash', 'opEquals', 'opCast', and/or 'toString' are non-const. +/
 				{
 					return "Dog";
 				}
