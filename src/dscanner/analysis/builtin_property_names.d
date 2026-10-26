@@ -6,6 +6,7 @@
 module dscanner.analysis.builtin_property_names;
 
 import dscanner.analysis.base;
+import dscanner.analysis.source_range : findIdentifier;
 
 /**
  * The following code should be killed with fire:
@@ -36,32 +37,34 @@ extern(C++) class BuiltinPropertyNameCheck(AST) : BaseAnalyzerDmd
 	mixin AggregateVisit!(AST.InterfaceDeclaration);
 	mixin AggregateVisit!(AST.UnionDeclaration);
 
+	extern (D) private size_t[2] nameRange(AST.Dsymbol symbol)
+	{
+		const name = findIdentifier(source, symbol.loc.fileOffset, symbol.ident.toString());
+		return [name.start, name.end];
+	}
+
 	override void visit(AST.VarDeclaration vd)
 	{
 		if (inAggregate && isBuiltinProperty(vd.ident.toString()))	
-			addErrorMessage(cast(ulong) vd.loc.linnum, cast(ulong) vd.loc.charnum,
-				KEY, generateErrorMessage(vd.ident.toString()));
+			addErrorMessage(nameRange(vd), KEY, generateErrorMessage(vd.ident.toString()));
 	}
 
 	override void visit(AST.FuncDeclaration fd)
 	{
 		if (inAggregate && isBuiltinProperty(fd.ident.toString()))	
-			addErrorMessage(cast(ulong) fd.loc.linnum, cast(ulong) fd.loc.charnum,
-				KEY, generateErrorMessage(fd.ident.toString()));
+			addErrorMessage(nameRange(fd), KEY, generateErrorMessage(fd.ident.toString()));
 	}
 
 	override void visit(AST.AliasDeclaration ad)
 	{
 		if (inAggregate && isBuiltinProperty(ad.ident.toString()))	
-			addErrorMessage(cast(ulong) ad.loc.linnum, cast(ulong) ad.loc.charnum,
-				KEY, generateErrorMessage(ad.ident.toString()));
+			addErrorMessage(nameRange(ad), KEY, generateErrorMessage(ad.ident.toString()));
 	}
 
 	override void visit(AST.TemplateDeclaration td)
 	{
 		if (inAggregate && isBuiltinProperty(td.ident.toString()))	
-			addErrorMessage(cast(ulong) td.loc.linnum, cast(ulong) td.loc.charnum,
-				KEY, generateErrorMessage(td.ident.toString()));
+			addErrorMessage(nameRange(td), KEY, generateErrorMessage(td.ident.toString()));
 	}
 
 private:
@@ -107,9 +110,12 @@ unittest
 	assertAnalyzerWarnings(q{
 class SomeClass
 {
-	void init(); // [warn]: Avoid naming members 'init'. This can confuse code that depends on the '.init' property of a type.
-	int init; // [warn]: Avoid naming members 'init'. This can confuse code that depends on the '.init' property of a type.
-	auto init = 10; // [warn]: Avoid naming members 'init'. This can confuse code that depends on the '.init' property of a type.
+	void init(); /+
+	     ^^^^ [warn]: Avoid naming members 'init'. This can confuse code that depends on the '.init' property of a type. +/
+	int init; /+
+	    ^^^^ [warn]: Avoid naming members 'init'. This can confuse code that depends on the '.init' property of a type. +/
+	auto init = 10; /+
+	     ^^^^ [warn]: Avoid naming members 'init'. This can confuse code that depends on the '.init' property of a type. +/
 }
 	}c, sac);
 
