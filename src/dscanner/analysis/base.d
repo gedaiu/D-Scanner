@@ -8,6 +8,7 @@ import std.meta : AliasSeq;
 import std.string;
 import std.sumtype;
 import dmd.attrib : UserAttributeDeclaration;
+import dmd.location : Loc;
 import dmd.visitor.transitive;
 import dmd.visitor;
 import dmd.func;
@@ -378,6 +379,22 @@ protected:
 	{
 		auto diag = Message.Diagnostic.from(fileName, index, lines, columns, message);
 		_messages.insert(Message(diag, key, getName(), autofixes));
+	}
+
+	/// Reports a diagnostic covering `length` characters on one line, starting at `start`.
+	extern (D) void addErrorMessage(Loc start, size_t length, string key, string message,
+		AutoFix[] autofixes = null)
+	{
+		addErrorMessage([start.fileOffset, start.fileOffset + length], [start.linnum, start.linnum],
+			[start.charnum, start.charnum + length], key, message, autofixes);
+	}
+
+	/// Reports a diagnostic from `start` up to and including the character at `last`.
+	extern (D) void addErrorMessage(Loc start, Loc last, string key, string message,
+		AutoFix[] autofixes = null)
+	{
+		addErrorMessage([start.fileOffset, last.fileOffset + 1], [start.linnum, last.linnum],
+			[start.charnum, last.charnum + 1], key, message, autofixes);
 	}
 
 	extern (D) bool skipTests;

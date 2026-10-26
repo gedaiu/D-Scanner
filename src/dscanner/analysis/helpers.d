@@ -207,12 +207,18 @@ void assertAnalyzerWarningsDMD(string code, const StaticAnalysisConfig config, b
 
 	string[] codeLines = code.splitLines();
 
+	struct FoundWarning
+	{
+		string msg;
+		size_t startColumn, endColumn;
+	}
+
 	// Get the warnings ordered by line
-	string[size_t] warnings;
+	FoundWarning[size_t] warnings;
 	foreach (rawWarning; rawWarnings[])
 	{
 		// Skip the warning if it is on line zero
-		immutable size_t rawLine = rawWarning.line;
+		immutable size_t rawLine = rawWarning.endLine;
 		if (rawLine == 0)
 		{
 			stderr.writefln("!!! Skipping warning because it is on line zero:\n%s",
@@ -221,28 +227,49 @@ void assertAnalyzerWarningsDMD(string code, const StaticAnalysisConfig config, b
 		}
 
 		size_t warnLine = line - 1 + rawLine;
-		warnings[warnLine] = format("[warn]: %s", rawWarning.message);
+		warnings[warnLine] = FoundWarning(
+			format("[warn]: %s", rawWarning.message),
+			rawWarning.startLine != rawWarning.endLine ? 1 : rawWarning.startColumn,
+			rawWarning.endColumn,
+		);
 	}
 
 	// Get all the messages from the comments in the code
-	string[size_t] messages;
+	FoundWarning[size_t] messages;
+	bool lastLineStartedComment = false;
 	foreach (i, codeLine; codeLines)
 	{
-		// Skip if no [warn] comment
-		if (codeLine.indexOf("// [warn]:") == -1)
-			continue;
-
-		// Skip if there is no comment or code
-		immutable string codePart = codeLine.before("// ");
-		immutable string commentPart = codeLine.after("// ");
-		if (!codePart.length || !commentPart.length)
-			continue;
+		scope (exit)
+			lastLineStartedComment = codeLine.stripRight.endsWith("/+", "/*") > 0;
 
 		// Get the line of this code line
 		size_t lineNo = i + line;
 
-		// Get the message
-		messages[lineNo] = commentPart;
+		if (codeLine.stripLeft.startsWith("^") && lastLineStartedComment)
+		{
+			auto start = codeLine.indexOf("^") + 1;
+			assert(start != 0);
+			auto end = codeLine.indexOfNeither("^", start) + 1;
+			assert(end != 0);
+			auto warn = codeLine.indexOf("[warn]:");
+			assert(warn != -1, "malformed line, expected `[warn]: text` after `^^^^^` part");
+			auto message = codeLine[warn .. $].stripRight;
+			if (message.endsWith("+/", "*/"))
+				message = message[0 .. $ - 2].stripRight;
+			messages[lineNo - 1] = FoundWarning(message, start, end);
+		}
+		// Skip if no [warn] comment
+		else if (codeLine.indexOf("// [warn]:") != -1)
+		{
+			// Skip if there is no comment or code
+			immutable string codePart = codeLine.before("// ");
+			immutable string commentPart = codeLine.after("// ");
+			if (!codePart.length || !commentPart.length)
+				continue;
+
+			// Get the message
+			messages[lineNo] = FoundWarning(commentPart);
+		}
 	}
 
 	// Throw an assert error if any messages are not listed in the warnings
@@ -256,10 +283,37 @@ void assertAnalyzerWarningsDMD(string code, const StaticAnalysisConfig config, b
 			throw new AssertError(errors, file, lineNo);
 		}
 		// Different warning
-		else if (warnings[lineNo] != messages[lineNo])
+		else if (warnings[lineNo].msg != messages[lineNo].msg)
 		{
 			immutable string errors = "Expected warning:\n%s\nBut was:\n%s\nFrom source code at (%s:?):\n%s".format(
 					messages[lineNo], warnings[lineNo], lineNo, codeLines[lineNo - line]);
+			throw new AssertError(errors, file, lineNo);
+		}
+
+		// specified column range
+		if ((message.startColumn || message.endColumn)
+			&& warnings[lineNo] != message)
+		{
+			import std.algorithm : max;
+			import std.array : array;
+			import std.range : repeat;
+			import std.string : replace;
+
+			const(char)[] expectedRange = ' '.repeat(max(0, cast(int)message.startColumn - 1)).array
+				~ '^'.repeat(max(0, cast(int)(message.endColumn - message.startColumn))).array;
+			const(char)[] actualRange;
+			if (!warnings[lineNo].startColumn || warnings[lineNo].startColumn == warnings[lineNo].endColumn)
+				actualRange = "no column range defined!";
+			else
+				actualRange = ' '.repeat(max(0, cast(int)warnings[lineNo].startColumn - 1)).array
+					~ '^'.repeat(max(0, cast(int)(warnings[lineNo].endColumn - warnings[lineNo].startColumn))).array;
+			size_t paddingWidth = max(expectedRange.length, actualRange.length);
+			immutable string errors = "Wrong warning range: expected %s, but was %s\nFrom source code at (%s:?):\n%s\n%-*s <-- expected\n%-*s <-- actual".format(
+					[message.startColumn, message.endColumn],
+					[warnings[lineNo].startColumn, warnings[lineNo].endColumn],
+					lineNo, codeLines[lineNo - line].replace("\t", " "),
+					paddingWidth, expectedRange,
+					paddingWidth, actualRange);
 			throw new AssertError(errors, file, lineNo);
 		}
 	}
@@ -275,7 +329,6 @@ void assertAnalyzerWarningsDMD(string code, const StaticAnalysisConfig config, b
 					lineNo, codeLines[lineNo - line]);
 		}
 	}
-
 	if (unexpectedWarnings.length)
 	{
 		immutable string message = "Unexpected warnings:\n" ~ unexpectedWarnings.join("\n");
