@@ -33,9 +33,15 @@ public:
 	{
 		if (scd.stc & STC.trusted)
 		{
-			// with several attributes dmd may locate the declaration after `@trusted`
-			const trusted = findIdentifier(source, declarationStart(source, scd.loc.fileOffset), "trusted");
-			addErrorMessage([trusted.start - "@".length, trusted.end], KEY, MESSAGE);
+			// with several attributes dmd may locate the declaration after `@trusted`,
+			// and a local declaration has no location, so search from its first member
+			const located = scd.loc.isValid || scd.decl is null || scd.decl.length == 0
+				? scd.loc : (*scd.decl)[0].loc;
+			if (located.isValid)
+			{
+				const trusted = findIdentifier(source, declarationStart(source, located.fileOffset), "trusted");
+				addErrorMessage([trusted.start - "@".length, trusted.end], KEY, MESSAGE);
+			}
 		}
 	
 			super.visit(scd);
@@ -129,6 +135,15 @@ unittest
 	@trusted ~this();
 	@trusted this();
 	}c , sac);
+
+	// a local declaration, which dmd gives no location of its own
+	assertAnalyzerWarnings(q{
+	void foo()
+	{
+		@trusted struct S {} /+
+		^^^^^^^^ [warn]: %s +/
+	}
+	}c.format(msg), sac);
 
 	stderr.writeln("Unittest for TrustTooMuchCheck passed.");
 }
