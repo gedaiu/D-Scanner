@@ -8,7 +8,6 @@ import std.meta : AliasSeq;
 import std.string;
 import std.sumtype;
 import dmd.attrib : UserAttributeDeclaration;
-import dmd.location : Loc;
 import dmd.visitor.transitive;
 import dmd.visitor;
 import dmd.func;
@@ -381,21 +380,26 @@ protected:
 		_messages.insert(Message(diag, key, getName(), autofixes));
 	}
 
-	/// Reports a diagnostic covering `length` characters on one line, starting at `start`.
-	extern (D) void addErrorMessage(Loc start, size_t length, string key, string message,
-		AutoFix[] autofixes = null)
+	/// Reports a diagnostic covering the source bytes `[offsets[0], offsets[1])`.
+	extern (D) void addErrorMessage(size_t[2] offsets, string key, string message, AutoFix[] autofixes = null)
 	{
-		addErrorMessage([start.fileOffset, start.fileOffset + length], [start.linnum, start.linnum],
-			[start.charnum, start.charnum + length], key, message, autofixes);
+		import dscanner.analysis.source_range : positionsOf;
+
+		const positions = positionsOf(source, offsets);
+		addErrorMessage(offsets, positions.lines, positions.columns, key, message, autofixes);
 	}
 
-	/// Reports a diagnostic from `start` up to and including the character at `last`.
-	extern (D) void addErrorMessage(Loc start, Loc last, string key, string message,
-		AutoFix[] autofixes = null)
+	/// The text of the analyzed file, followed by a 0 byte in memory.
+	extern (D) const(char)[] source()
 	{
-		addErrorMessage([start.fileOffset, last.fileOffset + 1], [start.linnum, last.linnum],
-			[start.charnum, last.charnum + 1], key, message, autofixes);
+		import dscanner.utils : readFile;
+
+		if (_source is null)
+			_source = cast(const(char)[]) (readFile(fileName) ~ '\0');
+		return _source[0 .. $ - 1];
 	}
+
+	extern (D) private const(char)[] _source;
 
 	extern (D) bool skipTests;
 

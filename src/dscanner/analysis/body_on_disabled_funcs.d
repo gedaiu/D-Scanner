@@ -56,7 +56,7 @@ extern (C++) class BodyOnDisabledFuncsCheck(AST) : BaseAnalyzerDmd
 		override void visit(NodeType node)
 		{
 			if ((isDisabled || (node.storage_class & STC.disable) != 0) && node.fbody !is null)
-				addErrorMessage(node.fbody.loc, node.endloc, KEY, MSG);
+				addErrorMessage([node.fbody.loc.fileOffset, node.endloc.fileOffset + 1], KEY, MSG);
 		}
 	}
 }
