@@ -5,6 +5,7 @@
 module dscanner.analysis.useless_initializer;
 
 import dscanner.analysis.base;
+import dscanner.analysis.source_range : balancedEnd, extentOf;
 import dmd.astenums : InitKind, STC, TY;
 import std.format : format;
 
@@ -123,8 +124,6 @@ extern (C++) class UselessInitializerChecker(AST) : BaseAnalyzerDmd
 		if (varDecl._init is null || varDecl.storage_class & STC.manifest || varDecl.comment())
 			return;
 
-		ulong lineNum = cast(ulong) varDecl.loc.linnum;
-		ulong charNum = cast(ulong) varDecl.loc.charnum;
 		string msg = MSG.format(varDecl.ident.toString());
 
 		if (auto expInit = varDecl._init.isExpInitializer())
@@ -134,12 +133,12 @@ extern (C++) class UselessInitializerChecker(AST) : BaseAnalyzerDmd
 				isBasicType = isBasicTypeConstant(varDecl.type.ty);
 
 			if (isRedundantExpInit(expInit.exp, isBasicType))
-				addErrorMessage(lineNum, charNum, KEY, msg);
+				addErrorMessage(extentOf(source, expInit.exp), KEY, msg);
 		}
 		else if (auto arrInit = varDecl._init.isArrayInitializer())
 		{
 			if (arrInit.dim == 0 && arrInit.index.length == 0 && arrInit.value.length == 0)
-				addErrorMessage(lineNum, charNum, KEY, msg);
+				addErrorMessage([arrInit.loc.fileOffset, balancedEnd(source, arrInit.loc.fileOffset, arrInit.loc.fileOffset)], KEY, msg);
 		}
 	}
 
@@ -248,25 +247,44 @@ extern (C++) class UselessInitializerChecker(AST) : BaseAnalyzerDmd
 	// fails
 	assertAnalyzerWarningsDMD(q{
 		struct S {}
-		ubyte a = 0x0;      // [warn]: %s
-		int a = 0;          // [warn]: %s
-		ulong a = 0;        // [warn]: %s
-		int* a = null;      // [warn]: %s
-		Foo* a = null;      // [warn]: %s
-		int[] a = null;     // [warn]: %s
-		int[] a = [];       // [warn]: %s
-		string a = null;    // [warn]: %s
-		string a = null;    // [warn]: %s
-		wstring a = null;   // [warn]: %s
-		dstring a = null;   // [warn]: %s
-		size_t a = 0;       // [warn]: %s
-		ptrdiff_t a = 0;    // [warn]: %s
-		string a = [];      // [warn]: %s
-		char[] a = null;    // [warn]: %s
-		int a = int.init;   // [warn]: %s
-		char a = char.init; // [warn]: %s
-		S s = S.init;       // [warn]: %s
-		bool a = false; 	// [warn]: %s
+		ubyte a = 0x0; /+
+		          ^^^ [warn]: %s +/
+		int a = 0; /+
+		        ^ [warn]: %s +/
+		ulong a = 0; /+
+		          ^ [warn]: %s +/
+		int* a = null; /+
+		         ^^^^ [warn]: %s +/
+		Foo* a = null; /+
+		         ^^^^ [warn]: %s +/
+		int[] a = null; /+
+		          ^^^^ [warn]: %s +/
+		int[] a = []; /+
+		          ^^ [warn]: %s +/
+		string a = null; /+
+		           ^^^^ [warn]: %s +/
+		string a = null; /+
+		           ^^^^ [warn]: %s +/
+		wstring a = null; /+
+		            ^^^^ [warn]: %s +/
+		dstring a = null; /+
+		            ^^^^ [warn]: %s +/
+		size_t a = 0; /+
+		           ^ [warn]: %s +/
+		ptrdiff_t a = 0; /+
+		              ^ [warn]: %s +/
+		string a = []; /+
+		           ^^ [warn]: %s +/
+		char[] a = null; /+
+		           ^^^^ [warn]: %s +/
+		int a = int.init; /+
+		        ^^^^^^^^ [warn]: %s +/
+		char a = char.init; /+
+		         ^^^^^^^^^ [warn]: %s +/
+		S s = S.init; /+
+		      ^^^^^^ [warn]: %s +/
+		bool a = false; /+
+		         ^^^^^ [warn]: %s +/
 	}.format(msgA, msgA, msgA, msgA, msgA, msgA, msgA, msgA, msgA, msgA, msgA,
 			msgA, msgA, msgA, msgA, msgA, msgA, msgS, msgA), sac);
 
@@ -321,7 +339,8 @@ extern (C++) class UselessInitializerChecker(AST) : BaseAnalyzerDmd
 	assertAnalyzerWarningsDMD(q{
 		@("nolint(dscanner.useless-initializer)")
 		int x = 0;
-		int a = 0; // [warn]: %s
+		int a = 0; /+
+		        ^ [warn]: %s +/
 
 		@("nolint(dscanner.useless-initializer)")
 		int f() {
