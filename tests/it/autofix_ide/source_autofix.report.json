@@ -18,37 +18,37 @@
 			"type": "warn",
 			"autofixes": [
 				{
-					"name": "Insert `const`",
+					"name": "Mark function `const`",
 					"replacements": [
 						{
-							"newText": "const ",
+							"newText": " const",
 							"range": [
-								25,
-								25
+								24,
+								24
 							]
 						}
 					]
 				},
 				{
-					"name": "Insert `inout`",
+					"name": "Mark function `inout`",
 					"replacements": [
 						{
-							"newText": "inout ",
+							"newText": " inout",
 							"range": [
-								25,
-								25
+								24,
+								24
 							]
 						}
 					]
 				},
 				{
-					"name": "Insert `immutable`",
+					"name": "Mark function `immutable`",
 					"replacements": [
 						{
-							"newText": "immutable ",
+							"newText": " immutable",
 							"range": [
-								25,
-								25
+								24,
+								24
 							]
 						}
 					]
@@ -73,51 +73,51 @@
 					"name": "Wrap '{}' block around 'if'",
 					"replacements": [
 						{
-                            "newText": " {\n\t\t\t",
-                            "range": [
-                                69,
-                                69
-                            ]
-                        },
-                        {
-                            "newText": "\t",
-                            "range": [
-                                76,
-                                76
-                            ]
-                        },
-                        {
-                            "newText": "\t",
-                            "range": [
-                                80,
-                                80
-                            ]
-                        },
-                        {
-                            "newText": "\t",
-                            "range": [
-                                82,
-                                82
-                            ]
-                        },
-                        {
-                            "newText": "\t",
-                            "range": [
-                                84,
-                                84
-                            ]
-                        },
-                        {
-                            "newText": "}\n\t",
-                            "range": [
-                                85,
-                                85
-                            ]
-                        }
-                    ]
+							"newText": " {\n\t\t\t",
+							"range": [
+								69,
+								69
+							]
+						},
+						{
+							"newText": "\t",
+							"range": [
+								76,
+								76
+							]
+						},
+						{
+							"newText": "\t",
+							"range": [
+								80,
+								80
+							]
+						},
+						{
+							"newText": "\t",
+							"range": [
+								82,
+								82
+							]
+						},
+						{
+							"newText": "\t",
+							"range": [
+								84,
+								84
+							]
+						},
+						{
+							"newText": "}\n\t",
+							"range": [
+								85,
+								85
+							]
+						}
+					]
 				}
 			],
-			"column": 8,
+			"column": 3,
 			"endColumn": 10,
 			"endIndex": 71,
 			"endLine": 8,
@@ -131,7 +131,7 @@
 			"type": "warn"
 		}
 	],
-	"lineOfCodeCount": 0,
+	"lineOfCodeCount": 3,
 	"statementCount": 2,
 	"structCount": 1,
 	"templateCount": 0,

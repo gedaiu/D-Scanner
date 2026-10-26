@@ -287,6 +287,18 @@ bool syntaxCheck(string[] fileNames, string errorFormat)
 	return analyze(fileNames, config, errorFormat);
 }
 
+/// Lines of code as `--sloc` counts them: statements and declarations ending in `;` or `}`.
+private ulong countLinesOfCode(string fileName, ubyte[] code)
+{
+	import dscanner.stats : isLineOfCode;
+
+	LexerConfig lexerConfig;
+	lexerConfig.fileName = fileName;
+	lexerConfig.stringBehavior = StringBehavior.source;
+	auto cache = StringCache(StringCache.defaultBucketCount);
+	return getTokensForParser(code, lexerConfig, &cache).count!(token => isLineOfCode(token.type));
+}
+
 void generateReport(string[] fileNames, const StaticAnalysisConfig config, string reportFile = "")
 {
 	auto reporter = new DScannerJsonReporter();
@@ -300,6 +312,7 @@ void generateReport(string[] fileNames, const StaticAnalysisConfig config, strin
 		// Skip files that could not be read and continue with the rest
 		if (code.length == 0)
 			continue;
+		lineOfCodeCount += countLinesOfCode(fileName, code);
 		auto dmdModule = parseDmdModule(fileName, cast(string) code);
 		dmdModule.accept(statsCollector);
 		MessageSet messageSet = analyzeDmd(fileName, dmdModule, getModuleName(dmdModule.md), config);
