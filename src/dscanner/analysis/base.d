@@ -8,6 +8,7 @@ import std.meta : AliasSeq;
 import std.string;
 import std.sumtype;
 import dmd.attrib : UserAttributeDeclaration;
+import dmd.dsymbol : Dsymbol;
 import dmd.visitor.transitive;
 import dmd.visitor;
 import dmd.func;
@@ -387,6 +388,15 @@ protected:
 
 		const positions = positionsOf(source, offsets);
 		addErrorMessage(offsets, positions.lines, positions.columns, key, message, autofixes);
+	}
+
+	/// Offsets of the name `symbol` declares.
+	extern (D) size_t[2] nameRange(Dsymbol symbol)
+	{
+		import dscanner.analysis.source_range : findIdentifier;
+
+		const name = findIdentifier(source, symbol.loc.fileOffset, symbol.ident.toString());
+		return [name.start, name.end];
 	}
 
 	/// The text of the analyzed file, followed by a 0 byte in memory.

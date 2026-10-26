@@ -2,7 +2,6 @@ module dscanner.analysis.constructors;
 
 import std.stdio;
 import dscanner.analysis.base;
-import dscanner.analysis.source_range : findIdentifier;
 import dscanner.analysis.helpers;
 
 extern(C++) class ConstructorCheck(AST) : BaseAnalyzerDmd
@@ -50,8 +49,7 @@ extern(C++) class ConstructorCheck(AST) : BaseAnalyzerDmd
 
 		if (hasNoArgConstructor && hasDefaultArgConstructor)
 		{
-			const name = findIdentifier(source, d.loc.fileOffset, d.ident.toString());
-			addErrorMessage([name.start, name.end], KEY, MESSAGE);
+			addErrorMessage(nameRange(d), KEY, MESSAGE);
 		}
 	}
 	

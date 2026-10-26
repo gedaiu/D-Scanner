@@ -6,7 +6,6 @@
 module dscanner.analysis.builtin_property_names;
 
 import dscanner.analysis.base;
-import dscanner.analysis.source_range : findIdentifier;
 
 /**
  * The following code should be killed with fire:
@@ -36,12 +35,6 @@ extern(C++) class BuiltinPropertyNameCheck(AST) : BaseAnalyzerDmd
 	mixin AggregateVisit!(AST.ClassDeclaration);
 	mixin AggregateVisit!(AST.InterfaceDeclaration);
 	mixin AggregateVisit!(AST.UnionDeclaration);
-
-	extern (D) private size_t[2] nameRange(AST.Dsymbol symbol)
-	{
-		const name = findIdentifier(source, symbol.loc.fileOffset, symbol.ident.toString());
-		return [name.start, name.end];
-	}
 
 	override void visit(AST.VarDeclaration vd)
 	{
