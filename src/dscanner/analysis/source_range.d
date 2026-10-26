@@ -81,6 +81,42 @@ size_t declarationStart(const(char)[] source, size_t nameOffset)
 	return tokenAt(source, separator + 1).start;
 }
 
+/**
+ * `[start, end)` of the type written before the declaration name at
+ * `nameOffset`, without leading attributes such as `public`, `static` or
+ * `@safe`.
+ */
+size_t[2] typeBeforeName(const(char)[] source, size_t nameOffset)
+{
+	import std.algorithm : canFind;
+
+	static immutable attributes = [TOK.public_, TOK.private_, TOK.protected_, TOK.package_,
+		TOK.export_, TOK.static_, TOK.final_, TOK.override_, TOK.abstract_, TOK.synchronized_,
+		TOK.deprecated_, TOK.pure_, TOK.nothrow_, TOK.extern_, TOK.at];
+
+	size_t[2] type = [size_t.max, nameOffset];
+	auto tokens = tokensFrom(source, declarationStart(source, nameOffset));
+	while (!tokens.empty && tokens.front.start < nameOffset)
+	{
+		const token = tokens.front;
+		if (type[0] == size_t.max && attributes.canFind(token.value))
+		{
+			tokens.popFront();
+			// `@name`, `@name(args)` and `extern(C)`
+			if (token.value == TOK.at && !tokens.empty)
+				tokens.popFront();
+			if (!tokens.empty && tokens.front.value == TOK.leftParenthesis)
+				tokens = tokensFrom(source, balancedEnd(source, tokens.front.start, tokens.front.start));
+			continue;
+		}
+		if (type[0] == size_t.max)
+			type[0] = token.start;
+		type[1] = token.end;
+		tokens.popFront();
+	}
+	return type;
+}
+
 /// End offset of the qualified name `a.b.c` starting at `offset`.
 size_t qualifiedNameEnd(const(char)[] source, size_t offset)
 {
@@ -224,6 +260,7 @@ unittest
 	assert(findToken(source, 30, TOK.assign).value == TOK.endOfFile);
 	assert(findIdentifier(source, 0, "foo") == SourceToken(TOK.identifier, 24, 27));
 	assert(balancedEnd(source, 10, 11) == 22);
+	assert(typeBeforeName("{ public static @nogc @attr(1) const(int)[] foo(); }", 44) == [31, 43]);
 	assert(declarationStart("struct S { /// doc\n\t@safe bool empty(); }", 30) == 20);
 	assert(qualifiedNameEnd("import a.bc.d : x;", 7) == 13);
 	assert(positionsOf(source, [10, 27]) == SourcePositions([1, 2], [11, 4]));

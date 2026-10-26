@@ -5,6 +5,7 @@
 module dscanner.analysis.properly_documented_public_functions;
 
 import dscanner.analysis.base;
+import dscanner.analysis.source_range : findIdentifier, typeBeforeName;
 import std.format : format;
 import std.range.primitives;
 import std.conv : to;
@@ -97,13 +98,13 @@ extern(C++) class ProperlyDocumentedPublicFunctions(AST) : BaseAnalyzerDmd
 			if (d.parameters) foreach (p; *d.parameters)
 				params ~= to!string(p.ident.toString());
 
-			auto comment = setLastDdocParams(d.loc.linnum, d.loc.charnum, to!string(d.comment));
-			checkDdocParams(d.loc.linnum, d.loc.charnum, params, null);
+			auto comment = setLastDdocParams(d, to!string(d.comment));
+			checkDdocParams(d, params, null);
 
 			auto tf = d.type.isTypeFunction();
 			if (tf && tf.next != Type.tvoid && d.comment
 				&& !comment.isDitto && !comment.sections.any!(s => s.name == "Returns"))
-					addErrorMessage(cast(ulong) d.loc.linnum, cast(ulong) d.loc.charnum,
+					addErrorMessage(typeBeforeName(source, nameRange(d)[0]),
 								MISSING_RETURNS_KEY, MISSING_RETURNS_MESSAGE);
 		}
 		
@@ -111,8 +112,7 @@ extern(C++) class ProperlyDocumentedPublicFunctions(AST) : BaseAnalyzerDmd
 		if (nestedFunc == 1)
 			foreach (t; thrown)
 				if (!hasThrowSection(to!string(d.comment)))
-					addErrorMessage(cast(ulong) d.loc.linnum, cast(ulong) d.loc.charnum,
-									MISSING_THROW_KEY, MISSING_THROW_MESSAGE.format(t));
+					addErrorMessage(nameRange(d), MISSING_THROW_KEY, MISSING_THROW_MESSAGE.format(t));
 	}
 
 	override void visit(AST.TemplateDeclaration d)
@@ -134,7 +134,7 @@ extern(C++) class ProperlyDocumentedPublicFunctions(AST) : BaseAnalyzerDmd
 
 		if (d.visibility.kind == Visibility.Kind.public_)
 		{
-			setLastDdocParams(d.loc.linnum, d.loc.charnum, to!string(d.comment));
+			setLastDdocParams(d, to!string(d.comment));
 			withinTemplate = true;
 			funcParams.length = 0;
 			templateParams.length = 0;
@@ -149,7 +149,7 @@ extern(C++) class ProperlyDocumentedPublicFunctions(AST) : BaseAnalyzerDmd
 		if (d.visibility.kind == Visibility.Kind.public_)
 		{
 			withinTemplate = false;
-			checkDdocParams(d.loc.linnum, d.loc.charnum, funcParams, templateParams);
+			checkDdocParams(d, funcParams, templateParams);
 		}
 	}
 
@@ -212,7 +212,7 @@ extern(C++) class ProperlyDocumentedPublicFunctions(AST) : BaseAnalyzerDmd
         return false;
     }
 
-	extern(D) auto setLastDdocParams(size_t line, size_t column, string commentText)
+	extern(D) auto setLastDdocParams(AST.Dsymbol declaration, string commentText)
 	{
 		import ddoc.comments : parseComment;
 		import std.algorithm.searching : find;
@@ -235,12 +235,12 @@ extern(C++) class ProperlyDocumentedPublicFunctions(AST) : BaseAnalyzerDmd
 			const paramSection = comment.sections.find!(s => s.name == "Params");
 			if (paramSection.empty)
 			{
-				lastSeenFun = Function(true, line, column, null);
+				lastSeenFun = Function(true, nameRange(declaration), null);
 			}
 			else
 			{
 				auto ddocParams = paramSection[0].mapping.map!(a => a[0]).array;
-				lastSeenFun = Function(true, line, column, ddocParams);
+				lastSeenFun = Function(true, nameRange(declaration), ddocParams);
 			}
 		}
 
@@ -250,13 +250,12 @@ extern(C++) class ProperlyDocumentedPublicFunctions(AST) : BaseAnalyzerDmd
 	/** 
 	 * 
 	 * Params:
-	 *   line = Line of the public declaration verified
-	 *   column = Column of the public declaration verified
+	 *   declaration = The public declaration verified
 	 *   params = Funcion parameters that must be documented
 	 *   templateParams = Template parameters that must be documented.
 	 *			Can be null if we are looking at a regular FuncDeclaration
 	 */
-	extern(D) void checkDdocParams(size_t line, size_t column, string[] params, string[] templateParams)
+	extern(D) void checkDdocParams(AST.Dsymbol declaration, string[] params, string[] templateParams)
 	{
 		import std.array : array;
 		import std.algorithm.searching : canFind, countUntil;
@@ -269,26 +268,33 @@ extern(C++) class ProperlyDocumentedPublicFunctions(AST) : BaseAnalyzerDmd
 			{
 
 				if (!lastSeenFun.ddocParams.canFind(p))
-					addErrorMessage(line, column, MISSING_PARAMS_KEY,
+					addErrorMessage(parameterRange(declaration, p), MISSING_PARAMS_KEY,
 						format(MISSING_PARAMS_MESSAGE, p));
 				else
 					lastSeenFun.params[p] = true;
 			}
 
-		checkDdocParams(line, column, templateParams);
+		checkDdocParams(declaration, templateParams);
 	}
 
-	extern(D) void checkDdocParams(size_t line, size_t column, string[] templateParams)
+	extern(D) void checkDdocParams(AST.Dsymbol declaration, string[] templateParams)
 	{
 		import std.algorithm.searching : canFind;
 		foreach (p; templateParams)
 		{
 			if (!lastSeenFun.ddocParams.canFind(p))
-				addErrorMessage(line, column, MISSING_PARAMS_KEY,
+				addErrorMessage(parameterRange(declaration, p), MISSING_PARAMS_KEY,
 					format(MISSING_TEMPLATE_PARAMS_MESSAGE, p));
 			else
 				lastSeenFun.params[p] = true;
 		}
+	}
+
+	/// Range of the parameter `name` in the parameter lists following the declared name.
+	extern(D) size_t[2] parameterRange(AST.Dsymbol declaration, string name)
+	{
+		const parameter = findIdentifier(source, nameRange(declaration)[1], name);
+		return [parameter.start, parameter.end];
 	}
 
 	extern(D) bool hasThrowSection(string commentText)
@@ -307,7 +313,7 @@ extern(C++) class ProperlyDocumentedPublicFunctions(AST) : BaseAnalyzerDmd
 		if (lastSeenFun.active)
 		foreach (p; lastSeenFun.ddocParams)
 			if (p !in lastSeenFun.params)
-				addErrorMessage(lastSeenFun.line, lastSeenFun.column, NON_EXISTENT_PARAMS_KEY,
+				addErrorMessage(lastSeenFun.nameRange, NON_EXISTENT_PARAMS_KEY,
 					NON_EXISTENT_PARAMS_MESSAGE.format(p));
 
 		lastSeenFun.active = false;
@@ -324,7 +330,7 @@ extern(C++) class ProperlyDocumentedPublicFunctions(AST) : BaseAnalyzerDmd
 	static struct Function
 	{
 		bool active;
-		size_t line, column;
+		size_t[2] nameRange;
 		// All params documented
 		const(string)[] ddocParams;
 		// Stores actual function params that are also documented
@@ -351,7 +357,8 @@ unittest
 		/**
 		Some text
 		*/
-		void foo(int k){} // [warn]: %s
+		void foo(int k){} /+
+		             ^ [warn]: %s +/
 	}c.format(
 		(ProperlyDocumentedPublicFunctions!ASTCodegen).MISSING_PARAMS_MESSAGE.format("k")
 	), sac, true);
@@ -360,7 +367,8 @@ unittest
 		/**
 		Some text
 		*/
-		void foo(int K)(){} // [warn]: %s
+		void foo(int K)(){} /+
+		             ^ [warn]: %s +/
 	}c.format(
 		(ProperlyDocumentedPublicFunctions!ASTCodegen).MISSING_TEMPLATE_PARAMS_MESSAGE.format("K")
 	), sac, true);
@@ -369,7 +377,8 @@ unittest
 		/**
 		Some text
 		*/
-		struct Foo(Bar){} // [warn]: %s
+		struct Foo(Bar){} /+
+		           ^^^ [warn]: %s +/
 	}c.format(
 		(ProperlyDocumentedPublicFunctions!ASTCodegen).MISSING_TEMPLATE_PARAMS_MESSAGE.format("Bar")
 	), sac, true);
@@ -378,7 +387,8 @@ unittest
 		/**
 		Some text
 		*/
-		class Foo(Bar){} // [warn]: %s
+		class Foo(Bar){} /+
+		          ^^^ [warn]: %s +/
 	}c.format(
 		(ProperlyDocumentedPublicFunctions!ASTCodegen).MISSING_TEMPLATE_PARAMS_MESSAGE.format("Bar")
 	), sac, true);
@@ -387,7 +397,8 @@ unittest
 		/**
 		Some text
 		*/
-		template Foo(Bar){} // [warn]: %s
+		template Foo(Bar){} /+
+		             ^^^ [warn]: %s +/
 	}c.format(
 		(ProperlyDocumentedPublicFunctions!ASTCodegen).MISSING_TEMPLATE_PARAMS_MESSAGE.format("Bar")
 	), sac, true);
@@ -426,7 +437,8 @@ unittest
 		/**
 		Some text
 		*/
-		int foo(){ return 0; } // [warn]: %s
+		int foo(){ return 0; } /+
+		^^^ [warn]: %s +/
 	}c.format(
 		(ProperlyDocumentedPublicFunctions!ASTCodegen).MISSING_RETURNS_MESSAGE,
 	), sac, true);
@@ -435,7 +447,8 @@ unittest
 		/**
 		Some text
 		*/
-		auto foo(){ return 0; } // [warn]: %s
+		auto foo(){ return 0; } /+
+		^^^^ [warn]: %s +/
 	}c.format(
 		(ProperlyDocumentedPublicFunctions!ASTCodegen).MISSING_RETURNS_MESSAGE,
 	), sac, true);
@@ -462,10 +475,12 @@ unittest
 		*/
 		private void foo(int k){}
 		///
-		public int bar(){ return 0; } // [warn]: %s
+		public int bar(){ return 0; } /+
+		       ^^^ [warn]: %s +/
 	public:
 		///
-		int foobar(){ return 0; } // [warn]: %s
+		int foobar(){ return 0; } /+
+		^^^ [warn]: %s +/
 	}c.format(
 		(ProperlyDocumentedPublicFunctions!ASTCodegen).MISSING_RETURNS_MESSAGE,
 		(ProperlyDocumentedPublicFunctions!ASTCodegen).MISSING_RETURNS_MESSAGE,
@@ -479,10 +494,12 @@ unittest
 		*/
 		private template foo(int k){}
 		///
-		public template bar(T){} // [warn]: %s
+		public template bar(T){} /+
+		                    ^ [warn]: %s +/
 	public:
 		///
-		template foobar(T){} // [warn]: %s
+		template foobar(T){} /+
+		                ^ [warn]: %s +/
 	}c.format(
 		(ProperlyDocumentedPublicFunctions!ASTCodegen).MISSING_TEMPLATE_PARAMS_MESSAGE.format("T"),
 		(ProperlyDocumentedPublicFunctions!ASTCodegen).MISSING_TEMPLATE_PARAMS_MESSAGE.format("T"),
@@ -496,10 +513,12 @@ unittest
 		*/
 		private struct foo(int k){}
 		///
-		public struct bar(T){} // [warn]: %s
+		public struct bar(T){} /+
+		                  ^ [warn]: %s +/
 	public:
 		///
-		struct foobar(T){} // [warn]: %s
+		struct foobar(T){} /+
+		              ^ [warn]: %s +/
 	}c.format(
 		(ProperlyDocumentedPublicFunctions!ASTCodegen).MISSING_TEMPLATE_PARAMS_MESSAGE.format("T"),
 		(ProperlyDocumentedPublicFunctions!ASTCodegen).MISSING_TEMPLATE_PARAMS_MESSAGE.format("T"),
@@ -521,7 +540,8 @@ unittest
  * Returns:
  * A long description.
  */
-int foo(int k){ return 0; } // [warn]: %s
+int foo(int k){ return 0; } /+
+            ^ [warn]: %s +/
 	}c.format(
 		(ProperlyDocumentedPublicFunctions!ASTCodegen).MISSING_PARAMS_MESSAGE.format("k")
 	), sac, true);
@@ -535,7 +555,8 @@ int foo(int k){ return 0; } // [warn]: %s
  * Returns:
  * A long description.
  */
-int foo(int k) => k; // [warn]: %s
+int foo(int k) => k; /+
+            ^ [warn]: %s +/
 	}c.format(
 		(ProperlyDocumentedPublicFunctions!ASTCodegen).MISSING_PARAMS_MESSAGE.format("k")
 	), sac, true);
@@ -551,7 +572,8 @@ k = A stupid parameter
 Returns:
 A long description.
 */
-int foo(int k){ return 0; } // [warn]: %s
+int foo(int k){ return 0; } /+
+    ^^^ [warn]: %s +/
 	}c.format(
 		(ProperlyDocumentedPublicFunctions!ASTCodegen).NON_EXISTENT_PARAMS_MESSAGE.format("val")
 	), sac, true);
@@ -565,7 +587,8 @@ Params:
 Returns:
 A long description.
 */
-int foo(int k){ return 0; } // [warn]: %s
+int foo(int k){ return 0; } /+
+            ^ [warn]: %s +/
 	}c.format(
 		(ProperlyDocumentedPublicFunctions!ASTCodegen).MISSING_PARAMS_MESSAGE.format("k")
 	), sac, true);
@@ -582,7 +605,8 @@ foobar  = A stupid parameter
 Returns:
 A long description.
 */
-int foo(int foo, int foobar){ return 0; } // [warn]: %s
+int foo(int foo, int foobar){ return 0; } /+
+    ^^^ [warn]: %s +/
 	}c.format(
 		(ProperlyDocumentedPublicFunctions!ASTCodegen).NON_EXISTENT_PARAMS_MESSAGE.format("bad")
 	), sac, true);
@@ -599,7 +623,8 @@ foobar  = A stupid parameter
 Returns:
 A long description.
 */
-struct foo(int foo, int foobar){} // [warn]: %s
+struct foo(int foo, int foobar){} /+
+       ^^^ [warn]: %s +/
 	}c.format(
 		(ProperlyDocumentedPublicFunctions!ASTCodegen).NON_EXISTENT_PARAMS_MESSAGE.format("bad")
 	), sac, true);
@@ -703,7 +728,8 @@ int bar(int f){ return 0; }
 int foo(int k){ return 0; }
 
 /// ditto
-int bar(int bar){ return 0; } // [warn]: %s
+int bar(int bar){ return 0; } /+
+            ^^^ [warn]: %s +/
 	}c.format(
 		(ProperlyDocumentedPublicFunctions!ASTCodegen).MISSING_PARAMS_MESSAGE.format("bar")
 	), sac, true);
@@ -722,7 +748,8 @@ int bar(int bar){ return 0; } // [warn]: %s
  * See_Also:
  *	$(REF takeExactly, std,range)
  */
-int foo(int k){ return 0; } // [warn]: %s
+int foo(int k){ return 0; } /+
+    ^^^ [warn]: %s +/
 
 /// ditto
 int bar(int bar){ return 0; }
@@ -824,7 +851,8 @@ Params:
 
 Returns: Awesome values.
 +/
-string bar(P, R)(R r){}// [warn]: %s
+string bar(P, R)(R r){} /+
+           ^ [warn]: %s +/
 	}c.format(
 		(ProperlyDocumentedPublicFunctions!ASTCodegen).MISSING_TEMPLATE_PARAMS_MESSAGE.format("P")
 	), sac, true);
@@ -885,7 +913,8 @@ void bar1(){
 /++
 Simple case
 +/
-	void bar2(){throw new Exception("bla");} // [warn]: %s
+	void bar2(){throw new Exception("bla");} /+
+	     ^^^^ [warn]: %s +/
 
 /++
 Supposed to be documented
@@ -897,7 +926,8 @@ void bar3(){throw new Exception("bla");}
 /++
 rethrow
 +/
-void bar4(){try throw new Exception("bla"); catch(Exception) throw new Error("bla");} // [warn]: %s
+void bar4(){try throw new Exception("bla"); catch(Exception) throw new Error("bla");} /+
+     ^^^^ [warn]: %s +/
 
 /++
 trust nothrow before everything
@@ -907,7 +937,8 @@ void bar5() nothrow {try throw new Exception("bla"); catch(Exception) assert(0);
 /++
 case of throw in nested func
 +/
-void bar6() // [warn]: %s
+void bar6() /+
+     ^^^^ [warn]: %s +/
 {
 	void foo(){throw new AssertError("bla");}
 	foo();
@@ -926,7 +957,8 @@ void bar7()
 /++
 case of double throw in nested func but only 1 caught
 +/
-void bar8() // [warn]: %s
+void bar8() /+
+     ^^^^ [warn]: %s +/
 {
 	void foo(){throw new AssertError("bla");throw new Error("bla");}
 	try foo();
