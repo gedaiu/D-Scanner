@@ -26,13 +26,13 @@ extern (C++) class AsmStyleCheck(AST) : BaseAnalyzerDmd
 
 	override void visit(AST.AsmStatement asmStatement)
 	{
-		for (Token* token = asmStatement.tokens; token !is null; token = token.next)
+		Token* previous;
+		for (Token* token = asmStatement.tokens; token !is null; previous = token, token = token.next)
 		{
 			if (isConfusingStatement(token))
 			{
-				auto lineNum = cast(size_t) token.loc.linnum;
-				auto charNum = cast(size_t) token.loc.charnum;
-				addErrorMessage(lineNum, charNum, KEY, MESSAGE);
+				const start = (previous ? previous : token).loc.fileOffset;
+				addErrorMessage([start, token.next.next.loc.fileOffset + 1], KEY, MESSAGE);
 			}
 		}
 	}
@@ -71,7 +71,8 @@ unittest
 		{
 			asm
 			{
-				mov a, someArray[1]; // [warn]: This is confusing because it looks like an array index. Rewrite a[1] as [a + 1] to clarify.
+				mov a, someArray[1]; /+
+				       ^^^^^^^^^^^^ [warn]: This is confusing because it looks like an array index. Rewrite a[1] as [a + 1] to clarify. +/
 				add near ptr [EAX], 3;
 			}
 		}
