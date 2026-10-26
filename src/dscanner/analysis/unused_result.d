@@ -297,9 +297,11 @@ unittest
         void main()
         {
         	if (true)
-            	fun(); // [warn]: %s
+            	fun(); /+
+            	^^^ [warn]: %s +/
             else
-            	fun(); // [warn]: %s
+            	fun(); /+
+            	^^^ [warn]: %s +/
         }
     }c.format(MSG, MSG), sac);
 
