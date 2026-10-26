@@ -7,7 +7,6 @@ module dscanner.analysis.alias_syntax_check;
 
 import dscanner.analysis.base;
 import dmd.tokens;
-import dmd.lexer : Lexer;
 
 /**
  * Checks for uses of the old alias syntax.
@@ -24,30 +23,25 @@ extern(C++) class AliasSyntaxCheck(AST) : BaseAnalyzerDmd
 
 	override void visit(AST.AliasDeclaration ad)
 	{
-		import dscanner.utils: readFile;
+		import dscanner.analysis.source_range : findToken;
 
 		// `alias a, b;` declares one AliasDeclaration per identifier, all at the `alias` token
 		if (ad.loc.fileOffset == lastReportedOffset)
 			return;
 
-		auto bytes = readFile(fileName);
-		bytes ~= '\0';
-		const source = cast(const(char)[]) bytes[ad.loc.fileOffset .. $];
-
-		auto tokens = lexAliasBody(source);
+		auto tokens = lexAliasBody(source, ad.loc.fileOffset);
 		if (tokens.length == 0 || hasTopLevelAssign(tokens))
 			return;
 
 		lastReportedOffset = ad.loc.fileOffset;
-		const declarationEnd = [tokens[0].start, tokens[$ - 1].end];
 		const replacement = newSyntax(source, tokens);
 		AutoFix[] autofixes;
 		if (replacement.length)
-			autofixes ~= AutoFix.replacement(ad.loc.fileOffset + declarationEnd[0],
-				ad.loc.fileOffset + declarationEnd[1], replacement,
+			autofixes ~= AutoFix.replacement(tokens[0].start, tokens[$ - 1].end, replacement,
 				"Rewrite alias to use assignment syntax");
 
-		addErrorMessage(cast(ulong) ad.loc.linnum, cast(ulong) ad.loc.charnum, KEY,
+		const declarationEnd = findToken(source, tokens[$ - 1].end, TOK.semicolon).end;
+		addErrorMessage([ad.loc.fileOffset, declarationEnd], KEY,
 				"Prefer the new \"'alias' identifier '=' type ';'\" syntax"
 				~ " to the old \"'alias' type identifier ';'\" syntax.", autofixes);
 	}
@@ -65,29 +59,22 @@ private struct AliasToken
 	size_t start, end;
 }
 
-/// Lexes the tokens between `alias` and the closing `;`, recording their nesting depth.
-private AliasToken[] lexAliasBody(const(char)[] source)
+/// Lexes the tokens between the `alias` at `offset` and the closing `;`, recording their nesting depth.
+private AliasToken[] lexAliasBody(const(char)[] source, size_t offset)
 {
-	import dmd.errorsink : ErrorSinkNull;
-	import dmd.globals : global;
-
-	__gshared ErrorSinkNull errorSinkNull;
-	if (!errorSinkNull)
-		errorSinkNull = new ErrorSinkNull;
-
-	scope lexer = new Lexer(null, source.ptr, 0, source.length, 0, 0, errorSinkNull, &global.compileEnv);
-	lexer.nextToken();
+	import dscanner.analysis.source_range : tokensFrom;
+	import std.range : drop;
 
 	AliasToken[] tokens;
 	size_t depth;
-	for (auto value = lexer.nextToken(); value != TOK.endOfFile; value = lexer.nextToken())
+	foreach (token; tokensFrom(source, offset).drop(1))
 	{
-		if (value == TOK.semicolon && depth == 0)
+		if (token.value == TOK.semicolon && depth == 0)
 			break;
-		if (value == TOK.rightParenthesis || value == TOK.rightBracket || value == TOK.rightCurly)
+		if (token.value == TOK.rightParenthesis || token.value == TOK.rightBracket || token.value == TOK.rightCurly)
 			depth--;
-		tokens ~= AliasToken(value, depth, lexer.token.ptr - source.ptr, lexer.p - source.ptr);
-		if (value == TOK.leftParenthesis || value == TOK.leftBracket || value == TOK.leftCurly)
+		tokens ~= AliasToken(token.value, depth, token.start, token.end);
+		if (token.value == TOK.leftParenthesis || token.value == TOK.leftBracket || token.value == TOK.leftCurly)
 			depth++;
 	}
 	return tokens;
@@ -162,11 +149,14 @@ unittest
 	StaticAnalysisConfig sac = disabledConfig();
 	sac.alias_syntax_check = Check.enabled;
 	assertAnalyzerWarnings(q{
-		alias int abcde; // [warn]: Prefer the new "'alias' identifier '=' type ';'" syntax to the old "'alias' type identifier ';'" syntax.
+		alias int abcde; /+
+		^^^^^^^^^^^^^^^^ [warn]: Prefer the new "'alias' identifier '=' type ';'" syntax to the old "'alias' type identifier ';'" syntax.+/
 		alias abcde = int;
-		alias xyz[] a, b; // [warn]: Prefer the new "'alias' identifier '=' type ';'" syntax to the old "'alias' type identifier ';'" syntax.
+		alias xyz[] a, b; /+
+		^^^^^^^^^^^^^^^^^ [warn]: Prefer the new "'alias' identifier '=' type ';'" syntax to the old "'alias' type identifier ';'" syntax.+/
 		alias a = xyz, b = xyz;
-		alias void Func(); // [warn]: Prefer the new "'alias' identifier '=' type ';'" syntax to the old "'alias' type identifier ';'" syntax.
+		alias void Func(); /+
+		^^^^^^^^^^^^^^^^^^ [warn]: Prefer the new "'alias' identifier '=' type ';'" syntax to the old "'alias' type identifier ';'" syntax.+/
 		alias Func = void();
 		alias tem(T) = T!int;
 	}c, sac);
