@@ -23,8 +23,7 @@ extern (C++) class UnusedParameterCheck(AST) : BaseAnalyzerDmd
 	private static struct ParamInfo
 	{
 		string name;
-		ulong lineNum;
-		ulong charNum;
+		size_t[2] range;
 		bool isUsed = false;
 	}
 
@@ -49,7 +48,7 @@ extern (C++) class UnusedParameterCheck(AST) : BaseAnalyzerDmd
 		if (!shouldIgnoreWarns)
 			currentScope.byValue
 				.filter!(param => !param.isUsed)
-				.each!(param => addErrorMessage(param.lineNum, param.charNum, KEY, MSG.format(param.name)));
+				.each!(param => addErrorMessage(param.range, KEY, MSG.format(param.name)));
 
 		popScope();
 	}
@@ -65,7 +64,7 @@ extern (C++) class UnusedParameterCheck(AST) : BaseAnalyzerDmd
 		bool shouldBeIgnored = varName.all!(c => c == '_') || parameter.storageClass & STC.ref_
 			|| parameter.storageClass & STC.out_ || parameter.type.ty == TY.Tpointer;
 		if (!shouldBeIgnored)
-			currentScope[varName] = ParamInfo(varName, parameter.loc.linnum, parameter.loc.charnum);
+			currentScope[varName] = ParamInfo(varName, identifierRange(parameter.loc.fileOffset, varName));
 	}
 
 	override void visit(AST.TypeSArray newExp)
@@ -149,7 +148,7 @@ extern (C++) class UnusedParameterCheck(AST) : BaseAnalyzerDmd
 
 		// Workaround for gdc-12
 		ParamSet newScope;
-		newScope["test"] = ParamInfo("test", 0, 0);
+		newScope["test"] = ParamInfo("test", [0, 0]);
 		usedParams ~= newScope;
 		currentScope.remove("test");
 	}
@@ -179,9 +178,11 @@ extern (C++) class UnusedParameterCheck(AST) : BaseAnalyzerDmd
 			is(StringTypeOf!R));
 	}
 
-	void inPSC(in int a){} // [warn]: Parameter a is never used.
+	void inPSC(in int a){} /+
+	                  ^ [warn]: Parameter a is never used. +/
 
-	void doStuff(int a, int b) // [warn]: Parameter b is never used.
+	void doStuff(int a, int b) /+
+	                        ^ [warn]: Parameter b is never used. +/
 	{
 		return a;
 	}
@@ -202,7 +203,8 @@ extern (C++) class UnusedParameterCheck(AST) : BaseAnalyzerDmd
 	{
 		auto cb1 = delegate(size_t _) {};
 		cb1(3);
-		auto cb2 = delegate(size_t a) {}; // [warn]: Parameter a is never used.
+		auto cb2 = delegate(size_t a) {}; /+
+		                           ^ [warn]: Parameter a is never used. +/
 		cb2(3);
 	}
 
