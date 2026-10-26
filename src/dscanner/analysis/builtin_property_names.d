@@ -112,5 +112,18 @@ class SomeClass
 }
 	}c, sac);
 
+	// aliases and templates are members too
+	assertAnalyzerWarnings(q{
+struct S
+{
+	alias init = int; /+
+	      ^^^^ [warn]: Avoid naming members 'init'. This can confuse code that depends on the '.init' property of a type. +/
+	template init() {} /+
+	         ^^^^ [warn]: Avoid naming members 'init'. This can confuse code that depends on the '.init' property of a type. +/
+	alias stringof = int; /+
+	      ^^^^^^^^ [warn]: Avoid naming members 'stringof'. This can confuse code that depends on the '.stringof' property of a type. +/
+}
+	}c, sac);
+
 	stderr.writeln("Unittest for BuiltinPropertyNamesCheck passed.");
 }

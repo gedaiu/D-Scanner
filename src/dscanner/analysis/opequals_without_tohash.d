@@ -171,5 +171,26 @@ unittest
 
 	}c, sac);
 
+	// methods inside attribute blocks
+	assertAnalyzerWarningsDMD(q{
+		class C /+
+		      ^ [warn]: 'C' has method 'opEquals', but not 'toHash'. +/
+		{
+			@safe
+			{
+				override bool opEquals(Object o) { return true; }
+			}
+		}
+
+		struct S /+
+		       ^ [warn]: 'S' has method 'toHash', but not 'opEquals'. +/
+		{
+			nothrow
+			{
+				hash_t toHash() const { return 0; }
+			}
+		}
+	}c, sac);
+
 	stderr.writeln("Unittest for OpEqualsWithoutToHashCheck passed.");
 }

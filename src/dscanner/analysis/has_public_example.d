@@ -329,5 +329,23 @@ unittest
 		deprecated void dirName(C)(C[] path) {}
 	}, sac);
 
+	// declarations inside attribute blocks
+	assertAnalyzerWarningsDMD(q{
+		///
+		@safe
+		{
+			///
+			void f() {} /+
+			     ^ [warn]: Public declaration 'f' has no documented example. +/
+		}
+		///
+		public
+		{
+			///
+			struct S {} /+
+			       ^ [warn]: Public declaration 'S' has no documented example. +/
+		}
+	}, sac);
+
 	stderr.writeln("Unittest for HasPublicExampleCheck passed.");
 }
