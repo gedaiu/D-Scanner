@@ -91,7 +91,7 @@ extern (C++) class FunctionAttributeCheck(AST) : BaseAnalyzerDmd
 	{
 		import std.algorithm : canFind, find, filter, until;
 		import std.array : array;
-		import std.range : retro;
+		import std.range : front, retro;
 
 		super.visit(fd);
 
@@ -150,14 +150,17 @@ extern (C++) class FunctionAttributeCheck(AST) : BaseAnalyzerDmd
 					.find!(t => t.value == TOK.at);
 
 				if (!isStatic && isZeroParamProperty && !propertyRange.empty)
+				{
+					const parametersEnd = funcTokens.find!(t => t.value == TOK.rightParenthesis).front.loc.fileOffset + 1;
 					addErrorMessage(
 						index, lines, columns, KEY, CONST_MSG,
 						[
-							AutoFix.insertionAt(propertyRange.front.loc.fileOffset, "const "),
-							AutoFix.insertionAt(propertyRange.front.loc.fileOffset, "inout "),
-							AutoFix.insertionAt(propertyRange.front.loc.fileOffset, "immutable "),
+							AutoFix.insertionAt(parametersEnd, " const", "Mark function `const`"),
+							AutoFix.insertionAt(parametersEnd, " inout", "Mark function `inout`"),
+							AutoFix.insertionAt(parametersEnd, " immutable", "Mark function `immutable`"),
 						]
 					);
+				}
 			}
 			else
 			{
