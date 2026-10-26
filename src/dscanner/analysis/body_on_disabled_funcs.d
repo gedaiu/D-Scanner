@@ -56,7 +56,7 @@ extern (C++) class BodyOnDisabledFuncsCheck(AST) : BaseAnalyzerDmd
 		override void visit(NodeType node)
 		{
 			if ((isDisabled || (node.storage_class & STC.disable) != 0) && node.fbody !is null)
-				addErrorMessage(cast(ulong) node.loc.linnum, cast(ulong) node.loc.charnum, KEY, MSG);
+				addErrorMessage(node.fbody.loc, node.endloc, KEY, MSG);
 		}
 	}
 }
@@ -92,9 +92,12 @@ unittest
 			}
 		}
 
-		this() {} // [warn]: Constructor marked with '@disabled' should not have a body
-		void doThing() {} // [warn]: Function marked with '@disabled' should not have a body
-		~this() {} // [warn]: Destructor marked with '@disabled' should not have a body
+		this() {} /+
+		       ^^ [warn]: Constructor marked with '@disabled' should not have a body +/
+		void doThing() {} /+
+		               ^^ [warn]: Function marked with '@disabled' should not have a body +/
+		~this() {} /+
+		        ^^ [warn]: Destructor marked with '@disabled' should not have a body +/
 
 		this();
 		void doThing();
@@ -103,18 +106,28 @@ unittest
 
 	class C2
 	{
-		@disable this() {} // [warn]: Constructor marked with '@disabled' should not have a body
-		@disable { this() {} } // [warn]: Constructor marked with '@disabled' should not have a body
-		this() @disable {} // [warn]: Constructor marked with '@disabled' should not have a body
+		@disable this() {} /+
+		                ^^ [warn]: Constructor marked with '@disabled' should not have a body +/
+		@disable { this() {} } /+
+		                  ^^ [warn]: Constructor marked with '@disabled' should not have a body +/
+		this() @disable {} /+
+		                ^^ [warn]: Constructor marked with '@disabled' should not have a body +/
 
-		@disable void doThing() {} // [warn]: Function marked with '@disabled' should not have a body
-		@disable doThing() {} // [warn]: Function marked with '@disabled' should not have a body
-		@disable { void doThing() {} } // [warn]: Function marked with '@disabled' should not have a body
-		void doThing() @disable {} // [warn]: Function marked with '@disabled' should not have a body
+		@disable void doThing() {} /+
+		                        ^^ [warn]: Function marked with '@disabled' should not have a body +/
+		@disable doThing() {} /+
+		                   ^^ [warn]: Function marked with '@disabled' should not have a body +/
+		@disable { void doThing() {} } /+
+		                          ^^ [warn]: Function marked with '@disabled' should not have a body +/
+		void doThing() @disable {} /+
+		                        ^^ [warn]: Function marked with '@disabled' should not have a body +/
 
-		@disable ~this() {} // [warn]: Destructor marked with '@disabled' should not have a body
-		@disable { ~this() {} } // [warn]: Destructor marked with '@disabled' should not have a body
-		~this() @disable {} // [warn]: Destructor marked with '@disabled' should not have a body
+		@disable ~this() {} /+
+		                 ^^ [warn]: Destructor marked with '@disabled' should not have a body +/
+		@disable { ~this() {} } /+
+		                   ^^ [warn]: Destructor marked with '@disabled' should not have a body +/
+		~this() @disable {} /+
+		                 ^^ [warn]: Destructor marked with '@disabled' should not have a body +/
 
 		@disable this();
 		@disable { this(); }
