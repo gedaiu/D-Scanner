@@ -7,7 +7,8 @@ module dscanner.analysis.ifelsesame;
 
 import dscanner.analysis.base;
 import dmd.hdrgen : toChars;
-import dmd.tokens : EXP;
+import dmd.tokens : EXP, TOK;
+import dscanner.analysis.source_range : extentOf, findToken;
 import std.conv : to;
 import std.string : format;
 import std.typecons : Tuple, tuple;
@@ -54,11 +55,7 @@ extern (C++) class IfElseSameCheck(AST) : BaseAnalyzerDmd
 		auto elseBody = to!string(toChars(ifStatement.elsebody));
 
 		if (thenBody == elseBody)
-		{
-			auto lineNum = cast(ulong) ifStatement.loc.linnum;
-			auto charNum = cast(ulong) ifStatement.loc.charnum;
-			addErrorMessage(lineNum, charNum, IF_KEY, IF_MESSAGE);
-		}
+			addErrorMessage([ifStatement.loc.fileOffset, statementEnd(ifStatement.elsebody)], IF_KEY, IF_MESSAGE);
 	}
 
 	override void visit(AST.AssignExp assignExp)
@@ -82,6 +79,14 @@ extern (C++) class IfElseSameCheck(AST) : BaseAnalyzerDmd
 		handleBinaryExpression(logicalExpr);
 	}
 
+	/// End offset of a statement: its closing brace, or its `;`.
+	extern (D) private size_t statementEnd(AST.Statement statement)
+	{
+		if (auto scopeStatement = statement.isScopeStatement())
+			return scopeStatement.endloc.fileOffset + 1;
+		return findToken(source, statement.loc.fileOffset, TOK.semicolon).end;
+	}
+
 	private void handleBinaryExpression(AST.BinExp expr)
 	{
 		auto expr1 = to!string(toChars(expr.e1));
@@ -89,10 +94,8 @@ extern (C++) class IfElseSameCheck(AST) : BaseAnalyzerDmd
 
 		if (expr1 == expr2)
 		{
-			auto lineNum = cast(ulong) expr.loc.linnum;
-			auto charNum = cast(ulong) expr.loc.charnum;
 			auto errorInfo = getErrorInfo(expr.op);
-			addErrorMessage(lineNum, charNum, errorInfo[0], errorInfo[1]);
+			addErrorMessage(extentOf(source, expr), errorInfo[0], errorInfo[1]);
 		}
 	}
 
@@ -123,18 +126,21 @@ unittest
 	sac.if_else_same_check = Check.enabled;
 
 	assertAnalyzerWarningsDMD(q{
-		void testThenElseSame()
+		void testSizeT()
 		{
 			string person = "unknown";
-			if (person == "unknown") // [warn]: 'Else' branch is identical to 'Then' branch.
-				person = "bobrick";
-			else
-				person = "bobrick";
-
 			if (person == "unknown")
-				person = "ricky";
+				person = "bobrick"; /* same */
 			else
-				person = "bobby";
+				person = "bobrick"; /* same */ /+
+^^^^^^^^^^^^^^^^^^^^^^^ [warn]: 'Else' branch is identical to 'Then' branch. +/
+			// note: above ^^^ line spans over multiple lines, so it starts at start of line, since we don't have any way to test this here
+			// look at the tests using 1-wide tab width for accurate visuals.
+
+			if (person == "unknown") // ok
+				person = "ricky"; // not same
+			else
+				person = "bobby"; // not same
 		}
 	}c, sac);
 
