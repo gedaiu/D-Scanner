@@ -218,7 +218,8 @@ unittest
 		          ^ [warn]: Public declaration 'I' is undocumented. +/
 		enum e = 0; /+
 		     ^ [warn]: Public declaration 'e' is undocumented. +/
-		void f(){} // [warn]: Public declaration 'f' is undocumented.
+		void f(){} /+
+		     ^ [warn]: Public declaration 'f' is undocumented. +/
 		struct S{} /+
 		       ^ [warn]: Public declaration 'S' is undocumented. +/
 		template T(){} /+
