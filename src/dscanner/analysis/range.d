@@ -7,6 +7,7 @@ module dscanner.analysis.range;
 
 import std.stdio;
 import dscanner.analysis.base;
+import dscanner.analysis.source_range : extentOf;
 import dscanner.analysis.helpers;
 import std.string : format;
 
@@ -40,7 +41,7 @@ extern(C++) class BackwardsRangeCheck(AST) : BaseAnalyzerDmd
 		{
 			string message = format("%d is larger than %d. This slice is likely incorrect.",
 						lwr.getInteger(), upr.getInteger());
-			addErrorMessage(cast(ulong) ie.loc.linnum, cast(ulong) ie.loc.charnum, KEY, message);
+			addErrorMessage([extentOf(source, ie.lwr)[0], extentOf(source, ie.upr)[1]], KEY, message);
 		}
 			
 	}
@@ -55,7 +56,7 @@ extern(C++) class BackwardsRangeCheck(AST) : BaseAnalyzerDmd
 			string message = format(
 						"%d is larger than %d. Did you mean to use 'foreach_reverse( ... ; %d .. %d)'?",
 						lwr.getInteger(), upr.getInteger(), upr.getInteger(), lwr.getInteger());
-			addErrorMessage(cast(ulong) s.loc.linnum, cast(ulong) s.loc.charnum, KEY, message);
+			addErrorMessage([extentOf(source, s.lwr)[0], extentOf(source, s.upr)[1]], KEY, message);
 		}
 	}
 }
@@ -75,10 +76,12 @@ unittest
 			int[] data = [1, 2, 3, 4, 5];
 
 			data = data[1 .. 3]; // ok
-			data = data[3 .. 1]; // [warn]: 3 is larger than 1. This slice is likely incorrect.
+			data = data[3 .. 1]; /+
+			            ^^^^^^ [warn]: 3 is larger than 1. This slice is likely incorrect. +/
 
 			foreach (n; 1 .. 3) { } // ok
-			foreach (n; 3 .. 1) { } // [warn]: 3 is larger than 1. Did you mean to use 'foreach_reverse( ... ; 1 .. 3)'?
+			foreach (n; 3 .. 1) { } /+
+			            ^^^^^^ [warn]: 3 is larger than 1. Did you mean to use 'foreach_reverse( ... ; 1 .. 3)'? +/
 		}
 	}c, sac);
 
