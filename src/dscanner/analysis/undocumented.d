@@ -6,6 +6,7 @@
 module dscanner.analysis.undocumented;
 
 import dscanner.analysis.base;
+import dscanner.analysis.source_range : tokenAt;
 import dmd.astenums : STC;
 import std.format : format;
 import std.regex : ctRegex, matchAll;
@@ -59,7 +60,7 @@ extern (C++) class UndocumentedDeclarationCheck(AST) : BaseAnalyzerDmd
 
 		if (!canBeUndocumented)
 		{
-			addErrorMessage(funcDecl.loc.linnum, funcDecl.loc.charnum, KEY, MSG.format(funcName));
+			addErrorMessage(nameRange(funcDecl), KEY, MSG.format(funcName));
 			super.visit(funcDecl);
 		}
 	}
@@ -76,7 +77,7 @@ extern (C++) class UndocumentedDeclarationCheck(AST) : BaseAnalyzerDmd
 		if (ctorDecl.comment() !is null)
 			return;
 
-		addErrorMessage(ctorDecl.loc.linnum, ctorDecl.loc.charnum, KEY, DEFAULT_MSG);
+		addErrorMessage([ctorDecl.loc.fileOffset, tokenAt(source, ctorDecl.loc.fileOffset).end], KEY, DEFAULT_MSG);
 	}
 
 	override void visit(AST.TemplateDeclaration templateDecl)
@@ -87,7 +88,7 @@ extern (C++) class UndocumentedDeclarationCheck(AST) : BaseAnalyzerDmd
 		if (!templateDecl.isDeprecated())
 		{
 			string templateName = cast(string) templateDecl.ident.toString();
-			addErrorMessage(templateDecl.loc.linnum, templateDecl.loc.charnum, KEY, MSG.format(templateName));
+			addErrorMessage(nameRange(templateDecl), KEY, MSG.format(templateName));
 		}
 	}
 
@@ -116,7 +117,7 @@ extern (C++) class UndocumentedDeclarationCheck(AST) : BaseAnalyzerDmd
 			if (!canBeUndocumented)
 			{
 				string declName = cast(string) decl.ident.toString();
-				addErrorMessage(decl.loc.linnum, decl.loc.charnum, KEY, MSG.format(declName));
+				addErrorMessage(nameRange(decl), KEY, MSG.format(declName));
 				super.visit(decl);
 			}
 		}
@@ -191,7 +192,8 @@ unittest
 
 		public:
 			int g; // [warn]: Public declaration 'g' is undocumented.
-			void f() {} // [warn]: Public declaration 'f' is undocumented.
+			void f() {} /+
+			     ^ [warn]: Public declaration 'f' is undocumented. +/
 
 		private:
 			int a;
@@ -210,13 +212,19 @@ unittest
 	}c, sac);
 
 	assertAnalyzerWarningsDMD(q{
-		class C{} // [warn]: Public declaration 'C' is undocumented.
-		interface I{} // [warn]: Public declaration 'I' is undocumented.
-		enum e = 0; // [warn]: Public declaration 'e' is undocumented.
+		class C{} /+
+		      ^ [warn]: Public declaration 'C' is undocumented. +/
+		interface I{} /+
+		          ^ [warn]: Public declaration 'I' is undocumented. +/
+		enum e = 0; /+
+		     ^ [warn]: Public declaration 'e' is undocumented. +/
 		void f(){} // [warn]: Public declaration 'f' is undocumented.
-		struct S{} // [warn]: Public declaration 'S' is undocumented.
-		template T(){} // [warn]: Public declaration 'T' is undocumented.
-		union U{} // [warn]: Public declaration 'U' is undocumented.
+		struct S{} /+
+		       ^ [warn]: Public declaration 'S' is undocumented. +/
+		template T(){} /+
+		         ^ [warn]: Public declaration 'T' is undocumented. +/
+		union U{} /+
+		      ^ [warn]: Public declaration 'U' is undocumented. +/
 	}, sac);
 
 	assertAnalyzerWarningsDMD(q{
