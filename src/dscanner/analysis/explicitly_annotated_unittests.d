@@ -5,6 +5,8 @@
 module dscanner.analysis.explicitly_annotated_unittests;
 
 import dscanner.analysis.base;
+import dscanner.analysis.source_range : findToken;
+import dmd.tokens : TOK;
 
 /**
  * Requires unittests to be explicitly annotated with either @safe or @system
@@ -26,9 +28,10 @@ extern (C++) class ExplicitlyAnnotatedUnittestCheck(AST) : BaseAnalyzerDmd
 		if (skipTests)
 			return;
 
+		const keyword = findToken(source, d.loc.fileOffset, TOK.unittest_);
 		if (!(d.storage_class & STC.safe || d.storage_class & STC.system))
 			addErrorMessage(
-				cast(ulong) d.loc.linnum, cast(ulong) d.loc.charnum, KEY, MESSAGE,
+				[keyword.start, keyword.end], KEY, MESSAGE,
 				[
 					AutoFix.insertionAt(d.loc.fileOffset, "@safe "),
 					AutoFix.insertionAt(d.loc.fileOffset, "@system ")
@@ -61,8 +64,10 @@ unittest
 		@system unittest {}
 		pure nothrow @system @nogc unittest {}
 
-		unittest {} // [warn]: A unittest should be annotated with at least @safe or @system
-		pure nothrow @nogc unittest {} // [warn]: A unittest should be annotated with at least @safe or @system
+		unittest {} /+
+		^^^^^^^^ [warn]: A unittest should be annotated with at least @safe or @system +/
+		pure nothrow @nogc unittest {} /+
+		                   ^^^^^^^^ [warn]: A unittest should be annotated with at least @safe or @system +/
 	}c, sac);
 
 	// nested
@@ -72,8 +77,10 @@ unittest
 			@safe unittest {}
 			@system unittest {}
 
-			unittest {} // [warn]: A unittest should be annotated with at least @safe or @system
-			pure nothrow @nogc unittest {} // [warn]: A unittest should be annotated with at least @safe or @system
+			unittest {} /+
+			^^^^^^^^ [warn]: A unittest should be annotated with at least @safe or @system +/
+			pure nothrow @nogc unittest {} /+
+			                   ^^^^^^^^ [warn]: A unittest should be annotated with at least @safe or @system +/
 		}
 	}c, sac);
 
