@@ -6,6 +6,7 @@
 module dscanner.analysis.logic_precedence;
 
 import dscanner.analysis.base;
+import dscanner.analysis.source_range : extentOf;
 import dscanner.analysis.helpers;
 
 /**
@@ -50,7 +51,7 @@ extern (C++) class LogicPrecedenceCheck(AST) : BaseAnalyzerDmd
 		if ((left !is null && left.e2 is null) && (right !is null && right.e2 is null))
 			goto END;
 
-		addErrorMessage(cast(ulong) le.loc.linnum, cast(ulong) le.loc.charnum,
+		addErrorMessage(extentOf(source, le),
 				KEY, "Use parenthesis to clarify this expression.");
 
 	END:
@@ -68,9 +69,11 @@ unittest
 	assertAnalyzerWarningsDMD(q{
 		void testFish()
 		{
-			if (a && b || c) {} // [warn]: Use parenthesis to clarify this expression.
+			if (a && b || c) {} /+
+			    ^^^^^^^^^^^ [warn]: Use parenthesis to clarify this expression. +/
 			if ((a && b) || c) {} // Good
-			if (b || c && d) {} // [warn]: Use parenthesis to clarify this expression.
+			if (b || c && d) {} /+
+			    ^^^^^^^^^^^ [warn]: Use parenthesis to clarify this expression. +/
 			if (b || (c && d)) {} // Good
 		}
 	}c, sac);
