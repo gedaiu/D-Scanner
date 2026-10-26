@@ -51,7 +51,7 @@ extern (C++) class LabelVarNameCheck(AST) : BaseAnalyzerDmd
 
 		if (!(vd.storage_class & STC.scope_) && !isInLocalFunction)
 		{
-			auto thing = Thing(to!string(vd.ident.toChars()), vd.loc.linnum, vd.loc.charnum);
+			auto thing = Thing(to!string(vd.ident.toChars()), vd.loc.linnum, vd.loc.charnum, false, vd.loc.fileOffset);
 			duplicateCheck(thing, false, conditionalDepth > 0);
 		}
 
@@ -60,7 +60,7 @@ extern (C++) class LabelVarNameCheck(AST) : BaseAnalyzerDmd
 
 	override void visit(AST.LabelStatement ls)
 	{
-		auto thing = Thing(to!string(ls.ident.toChars()), ls.loc.linnum, ls.loc.charnum);
+		auto thing = Thing(to!string(ls.ident.toChars()), ls.loc.linnum, ls.loc.charnum, false, ls.loc.fileOffset);
 		duplicateCheck(thing, true, conditionalDepth > 0);
 		super.visit(ls);
 	}
@@ -227,7 +227,7 @@ private:
 				immutable otherKind = thing.isVar ? "variable" : "label";
 				auto msg = thisKind ~ " \"" ~ fqn ~ "\" has the same name as a "
 					~ otherKind ~ " defined on line " ~ to!string(thing.line) ~ ".";
-				addErrorMessage(id.line, id.column, KEY, msg);
+				addErrorMessage([id.offset, id.offset + id.name.length], KEY, msg);
 			}
 			++i;
 		}
@@ -239,6 +239,7 @@ private:
 		size_t line;
 		size_t column;
 		bool isVar;
+		size_t offset;
 	}
 
 	extern (D) ref currentScope() @property
@@ -282,25 +283,26 @@ private:
 
 unittest
 {
+	import dscanner.analysis.helpers : assertAnalyzerWarnings = assertAnalyzerWarningsDMD;
 	import dscanner.analysis.config : StaticAnalysisConfig, Check, disabledConfig;
-	import dscanner.analysis.helpers : assertAnalyzerWarningsDMD;
 	import std.stdio : stderr;
 
 	StaticAnalysisConfig sac = disabledConfig();
 	sac.label_var_same_name_check = Check.enabled;
-
-	assertAnalyzerWarningsDMD(q{
+	assertAnalyzerWarnings(q{
 unittest
 {
 blah:
-	int blah; // [warn]: Variable "blah" has the same name as a label defined on line 4.
+	int blah; /+
+	    ^^^^ [warn]: Variable "blah" has the same name as a label defined on line 4. +/
 }
 int blah;
 unittest
 {
 	static if (stuff)
 		int a;
-	int a; // [warn]: Variable "a" has the same name as a variable defined on line 11.
+	int a; /+
+	    ^ [warn]: Variable "a" has the same name as a variable defined on line 12. +/
 }
 
 unittest
@@ -317,7 +319,8 @@ unittest
 		int a = 10;
 	else
 		int a = 20;
-	int a; // [warn]: Variable "a" has the same name as a variable defined on line 28.
+	int a; /+
+	    ^ [warn]: Variable "a" has the same name as a variable defined on line 30. +/
 }
 template T(stuff)
 {
@@ -340,7 +343,8 @@ unittest
 		int c = 10;
 	else
 		int c = 20;
-	int c; // [warn]: Variable "c" has the same name as a variable defined on line 51.
+	int c; /+
+	    ^ [warn]: Variable "c" has the same name as a variable defined on line 54. +/
 }
 
 unittest
@@ -378,7 +382,8 @@ unittest
 	interface A
 	{
 		int a;
-		int a; // [warn]: Variable "A.a" has the same name as a variable defined on line 89.
+		int a; /+
+		    ^ [warn]: Variable "A.a" has the same name as a variable defined on line 93. +/
 	}
 }
 
@@ -402,6 +407,7 @@ unittest
 		break;
 	}
 }
+
 }c, sac);
 	stderr.writeln("Unittest for LabelVarNameCheck passed.");
 }
