@@ -78,18 +78,14 @@ extern(C++) class ImportSortednessCheck(AST) : BaseAnalyzerDmd
 	}
 
 private:
-	enum maxDepth = 20;
 	int level;
 	string[][int] imports;
-	bool[maxDepth] levelAvailable;
+	bool[int] levelAvailable;
 
 	template ScopedVisit(NodeType)
 	{
 		override void visit(NodeType n)
 		{
-			if (level >= maxDepth)
-				return;
-
 			imports[level] = [];
 			imports[++level] = [];
 			levelAvailable[level] = true;
@@ -103,7 +99,7 @@ private:
 		import std.algorithm : findSplit;
 		import std.uni : sicmp;
 
-		if (!levelAvailable[level])
+		if (!levelAvailable.get(level, false))
 		{
 			imports[level] = [];
 			levelAvailable[level] = true;
@@ -464,6 +460,16 @@ unittest
 		import t1;
 	}
 	}, sac);
+
+	// imports are checked at any nesting depth
+	{
+		import std.array : replicate;
+
+		enum depth = 25;
+		assertAnalyzerWarnings("void f()\n{\n" ~ "{\n".replicate(depth)
+			~ "import b;\nimport a; /+\n       ^ [warn]: " ~ ImportSortednessCheck!ASTCodegen.MESSAGE ~ " +/\n"
+			~ "}\n".replicate(depth) ~ "}\n", sac);
+	}
 
 	stderr.writeln("Unittest for ImportSortednessCheck passed.");
 }
