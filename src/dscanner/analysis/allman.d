@@ -80,7 +80,7 @@ extern (C++) class AllManCheck : BaseAnalyzerDmd
 
 				// ignore inline { } braces
 				if (curLine != tokens[i + 1].loc.linnum)
-					addErrorMessage(cast(ulong) tokens[i].loc.linnum, cast(ulong) tokens[i].loc.charnum, KEY, MESSAGE);
+					addErrorMessage([tokens[i].loc.fileOffset, tokens[i].loc.fileOffset + 1], KEY, MESSAGE);
 			}
 
 			if (tokens[i].value == TOK.rightCurly && curLine == prevTokenLine)
@@ -91,7 +91,7 @@ extern (C++) class AllManCheck : BaseAnalyzerDmd
 
 				// ignore inline { } braces
 				if (!tokens[0 .. i].retro.until!(t => t.loc.linnum != curLine).canFind!(t => t.value == TOK.leftCurly))
-					addErrorMessage(cast(ulong) tokens[i].loc.linnum, cast(ulong) tokens[i].loc.charnum, KEY, MESSAGE);
+					addErrorMessage([tokens[i].loc.fileOffset, tokens[i].loc.fileOffset + 1], KEY, MESSAGE);
 			}
 		}
 	}
@@ -111,7 +111,8 @@ unittest
 	assertAnalyzerWarningsDMD(q{
 		void testAllman()
 		{
-			while (true) { // [warn]: %s
+			while (true) { /+
+			             ^ [warn]: %s +/
 				auto f = 1;
 			}
 
