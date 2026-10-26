@@ -68,6 +68,22 @@ SourceToken tokenAfter(const(char)[] source, size_t offset)
 	return tokens.front;
 }
 
+/// End offset of the qualified name `a.b.c` starting at `offset`.
+size_t qualifiedNameEnd(const(char)[] source, size_t offset)
+{
+	size_t end = offset;
+	bool expectIdentifier = true;
+	foreach (token; tokensFrom(source, offset))
+	{
+		if (token.value != (expectIdentifier ? TOK.identifier : TOK.dot))
+			break;
+		if (expectIdentifier)
+			end = token.end;
+		expectIdentifier = !expectIdentifier;
+	}
+	return end;
+}
+
 /// The first token of kind `value` at or after `offset`, or a token of kind
 /// `TOK.endOfFile` when there is none.
 SourceToken findToken(const(char)[] source, size_t offset, TOK value)
@@ -195,5 +211,6 @@ unittest
 	assert(findToken(source, 30, TOK.assign).value == TOK.endOfFile);
 	assert(findIdentifier(source, 0, "foo") == SourceToken(TOK.identifier, 24, 27));
 	assert(balancedEnd(source, 10, 11) == 22);
+	assert(qualifiedNameEnd("import a.bc.d : x;", 7) == 13);
 	assert(positionsOf(source, [10, 27]) == SourcePositions([1, 2], [11, 4]));
 }
