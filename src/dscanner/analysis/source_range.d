@@ -68,6 +68,19 @@ SourceToken tokenAfter(const(char)[] source, size_t offset)
 	return tokens.front;
 }
 
+/**
+ * Start offset of the declaration whose name is at `nameOffset`: the first
+ * token after the preceding `{`, `}`, `;` or `:`, so return types and
+ * attributes are included.
+ */
+size_t declarationStart(const(char)[] source, size_t nameOffset)
+{
+	import std.string : lastIndexOfAny;
+
+	const separator = source[0 .. nameOffset].lastIndexOfAny("{};:");
+	return tokenAt(source, separator + 1).start;
+}
+
 /// End offset of the qualified name `a.b.c` starting at `offset`.
 size_t qualifiedNameEnd(const(char)[] source, size_t offset)
 {
@@ -211,6 +224,7 @@ unittest
 	assert(findToken(source, 30, TOK.assign).value == TOK.endOfFile);
 	assert(findIdentifier(source, 0, "foo") == SourceToken(TOK.identifier, 24, 27));
 	assert(balancedEnd(source, 10, 11) == 22);
+	assert(declarationStart("struct S { /// doc\n\t@safe bool empty(); }", 30) == 20);
 	assert(qualifiedNameEnd("import a.bc.d : x;", 7) == 13);
 	assert(positionsOf(source, [10, 27]) == SourcePositions([1, 2], [11, 4]));
 }

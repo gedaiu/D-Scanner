@@ -60,8 +60,7 @@ extern(C++) class IncorrectInfiniteRangeCheck(AST) : BaseAnalyzerDmd
 			AST.IntegerExp ie = cast(AST.IntegerExp) rs.exp;
 
 			if (ie && ie.getInteger() == 0)
-				addErrorMessage(cast(ulong) fd.loc.linnum, cast(ulong) fd.loc.charnum, KEY,
-				"Use `enum bool empty = false;` to define an infinite range.");
+				addErrorMessage(declarationRange(fd), KEY, MESSAGE);
 		}
 
 		AST.CompoundStatement cs = fd.fbody ? fd.fbody.isCompoundStatement() : null;
@@ -74,8 +73,7 @@ extern(C++) class IncorrectInfiniteRangeCheck(AST) : BaseAnalyzerDmd
 			AST.IntegerExp ie = cast(AST.IntegerExp) rs1.exp;
 
 			if (ie && ie.getInteger() == 0)
-				addErrorMessage(cast(ulong) fd.loc.linnum, cast(ulong) fd.loc.charnum, KEY,
-				"Use `enum bool empty = false;` to define an infinite range.");
+				addErrorMessage(declarationRange(fd), KEY, MESSAGE);
 		}
 
 		super.visit(fd);
@@ -86,6 +84,13 @@ extern(C++) class IncorrectInfiniteRangeCheck(AST) : BaseAnalyzerDmd
 		
 	}
 
+	extern (D) private size_t[2] declarationRange(AST.FuncDeclaration fd)
+	{
+		import dscanner.analysis.source_range : declarationStart;
+
+		return [declarationStart(source, fd.loc.fileOffset), fd.endloc.fileOffset + 1];
+	}
+
 private:
 	uint inAggregate;
 	enum string KEY = "dscanner.suspicious.incorrect_infinite_range";
@@ -94,18 +99,22 @@ private:
 
 unittest
 {
+	import dscanner.analysis.helpers : assertAnalyzerWarnings = assertAnalyzerWarningsDMD;
 	import std.stdio : stderr;
 	import dscanner.analysis.config : StaticAnalysisConfig, Check, disabledConfig;
 	import std.format : format;
+	import dmd.astcodegen : ASTCodegen;
 
 	StaticAnalysisConfig sac = disabledConfig();
 	sac.incorrect_infinite_range_check = Check.enabled;
-	assertAnalyzerWarningsDMD(q{struct InfiniteRange
+	assertAnalyzerWarnings(q{struct InfiniteRange
 {
-	bool empty() // [warn]: Use `enum bool empty = false;` to define an infinite range.
+	bool empty()
 	{
 		return false;
-	}
+	} /+
+^^ [warn]: %1$s+/
+	// TODO: test for multiline issues like this
 
 	bool stuff()
 	{
@@ -126,7 +135,8 @@ unittest
 
 struct InfiniteRange
 {
-	bool empty() => false; // [warn]: Use `enum bool empty = false;` to define an infinite range.
+	bool empty() => false; /+
+	^^^^^^^^^^^^^^^^^^^^^^ [warn]: %1$s +/
 	bool stuff() => false;
 	unittest
 	{
@@ -141,9 +151,11 @@ struct InfiniteRange
 }
 
 bool empty() { return false; }
-class C { bool empty() { return false; } } // [warn]: Use `enum bool empty = false;` to define an infinite range.
+class C { bool empty() { return false; } } /+
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ [warn]: %1$s +/
 
-}c, sac);
+}c
+			.format(IncorrectInfiniteRangeCheck!ASTCodegen.MESSAGE), sac);
 }
 
 // test for https://github.com/dlang-community/D-Scanner/issues/656
@@ -158,13 +170,14 @@ version(none) struct Foo
 
 unittest
 {
+	import dscanner.analysis.helpers : assertAnalyzerWarnings = assertAnalyzerWarningsDMD;
 	import std.stdio : stderr;
 	import dscanner.analysis.config : StaticAnalysisConfig, Check, disabledConfig;
 	import std.format : format;
 
 	StaticAnalysisConfig sac = disabledConfig();
 	sac.incorrect_infinite_range_check = Check.enabled;
-	assertAnalyzerWarningsDMD(q{
+	assertAnalyzerWarnings(q{
 		enum isAllZeroBits = ()
 		{
 			if (true)
