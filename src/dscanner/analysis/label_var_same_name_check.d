@@ -71,23 +71,18 @@ extern (C++) class LabelVarNameCheck(AST) : BaseAnalyzerDmd
 
 		conditionalDeclaration.condition.accept(this);
 
-		if (conditionalDeclaration.condition.isVersionCondition())
+		// only the branches of an if/else are alternatives; a lone branch shares the outer scope
+		const hasAlternatives = conditionalDeclaration.elsedecl !is null;
+		if (hasAlternatives)
 			++conditionalDepth;
-
-		if (conditionalDeclaration.elsedecl || conditionalDeclaration.condition.inc != Include.yes)
-			pushScope();
 
 		foreach (decl; conditionalDeclaration.decl.peekSlice())
 			decl.accept(this);
 
-		if (conditionalDeclaration.elsedecl || conditionalDeclaration.condition.inc != Include.yes)
-			popScope();
+		foreach (decl; conditionalDeclaration.elsedecl.peekSlice())
+			decl.accept(this);
 
-		if (conditionalDeclaration.elsedecl)
-			foreach (decl; conditionalDeclaration.elsedecl.peekSlice())
-				decl.accept(this);
-
-		if (conditionalDeclaration.condition.isVersionCondition())
+		if (hasAlternatives)
 			--conditionalDepth;
 	}
 
@@ -408,6 +403,20 @@ unittest
 	}
 }
 
+}c, sac);
+
+	// module level conditional declarations
+	assertAnalyzerWarnings(q{
+version (Windows)
+	int a;
+else
+	int a;
+version (Posix)
+{
+	int b;
+}
+int b; /+
+    ^ [warn]: Variable "b" has the same name as a variable defined on line 8. +/
 }c, sac);
 	stderr.writeln("Unittest for LabelVarNameCheck passed.");
 }
