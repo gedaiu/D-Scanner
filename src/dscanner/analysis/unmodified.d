@@ -21,8 +21,7 @@ extern (C++) class UnmodifiedFinder(AST) : BaseAnalyzerDmd
 	private static struct VarInfo
 	{
 		string name;
-		ulong lineNum;
-		ulong charNum;
+		size_t[2] range;
 		bool isUsed = false;
 	}
 
@@ -89,7 +88,7 @@ extern (C++) class UnmodifiedFinder(AST) : BaseAnalyzerDmd
 			|| varDeclaration.storage_class & STC.manifest || isConstType(varDeclaration.type);
 
 		bool markAsUsed = isConst || isFromCastOrNew(varDeclaration._init) || inAggregate;
-		currentScope[varName] = VarInfo(varName, varDeclaration.loc.linnum, varDeclaration.loc.charnum, markAsUsed);
+		currentScope[varName] = VarInfo(varName, identifierRange(varDeclaration.loc.fileOffset, varName), markAsUsed);
 	}
 
 	private bool isConstType(AST.Type type)
@@ -228,7 +227,7 @@ extern (C++) class UnmodifiedFinder(AST) : BaseAnalyzerDmd
 
 		// Workaround for gdc-12
 		VarSet newScope;
-		newScope["test"] = VarInfo("test", 0, 0);
+		newScope["test"] = VarInfo("test", [0, 0]);
 		usedVars ~= newScope;
 		currentScope.remove("test");
 	}
@@ -240,7 +239,7 @@ extern (C++) class UnmodifiedFinder(AST) : BaseAnalyzerDmd
 
 		currentScope.byValue
 			.filter!(var => !var.isUsed)
-			.each!(var => addErrorMessage(var.lineNum, var.charNum, KEY, MSG.format(var.name)));
+			.each!(var => addErrorMessage(var.range, KEY, MSG.format(var.name)));
 
 		usedVars.length--;
 	}
@@ -257,16 +256,23 @@ unittest
 
 	// fails
 	assertAnalyzerWarningsDMD(q{
+		void foo(){int i = 1;} /+
+		               ^ [warn]: Variable i is never modified and could have been declared const or immutable. +/
+	}, sac);
+
+	assertAnalyzerWarningsDMD(q{
 		void foo()
 		{
-			int i = 1; // [warn]: Variable i is never modified and could have been declared const or immutable.
+			int i = 1; /+
+			    ^ [warn]: Variable i is never modified and could have been declared const or immutable. +/
 		}
 	}, sac);
 
 	assertAnalyzerWarningsDMD(q{
 		void foo()
 		{
-			int i = 5; // [warn]: Variable i is never modified and could have been declared const or immutable.
+			int i = 5; /+
+			    ^ [warn]: Variable i is never modified and could have been declared const or immutable. +/
 			int j = 6;
 			j = i + 5;
 		}
