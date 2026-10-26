@@ -111,7 +111,7 @@ extern (C++) class UnusedResultChecker(AST) : BaseAnalyzerDmd
 
 	override void visit(AST.CompoundStatement compoundStatement)
 	{
-		foreach (statement; *compoundStatement.statements)
+		foreach (statement; compoundStatement.statements)
 		{
 			if (hasUnusedResult(statement))
 			{

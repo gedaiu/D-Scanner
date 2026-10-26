@@ -6,6 +6,7 @@
 module dscanner.analysis.line_length;
 
 import dscanner.analysis.base;
+import core.stdc.string : strlen;
 import dmd.tokens : Token, TOK;
 
 /**
@@ -94,7 +95,7 @@ extern (C++) class LineLengthCheck : BaseAnalyzerDmd
 					checkStringLiteral(token.ptr[0 .. tokens[i + 1].ptr - token.ptr]);
 				break;
 			default:
-				currentLineLen += token.toString().length;
+				currentLineLen += token.toChars().strlen;
 			}
 		}
 	}

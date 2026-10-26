@@ -118,7 +118,7 @@ extern (C++) class VcallCtorChecker(AST) : BaseAnalyzerDmd
         if (funcDecl.fbody !is null)
         {
             auto funcBody = funcDecl.fbody.isCompoundStatement();
-            hasVirtualBody = funcBody !is null && funcBody.statements !is null && (*funcBody.statements).length == 0;
+            hasVirtualBody = funcBody !is null && funcBody.statements.length == 0;
         }
         else
         {

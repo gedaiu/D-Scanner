@@ -66,10 +66,10 @@ extern(C++) class IncorrectInfiniteRangeCheck(AST) : BaseAnalyzerDmd
 
 		AST.CompoundStatement cs = fd.fbody ? fd.fbody.isCompoundStatement() : null;
 		
-		if (!cs || (*cs.statements).length == 0)
+		if (!cs || cs.statements.length == 0)
 			return;
 
-		if (auto rs1 = (*cs.statements)[0].isReturnStatement())
+		if (auto rs1 = cs.statements[0].isReturnStatement())
 		{
 			AST.IntegerExp ie = cast(AST.IntegerExp) rs1.exp;
 
