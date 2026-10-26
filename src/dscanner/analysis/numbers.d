@@ -7,6 +7,7 @@ module dscanner.analysis.numbers;
 
 import dscanner.analysis.base;
 import dmd.tokens : TOK;
+import dscanner.analysis.source_range : tokenAt;
 import std.conv;
 import std.regex;
 
@@ -64,7 +65,7 @@ extern (C++) class NumberStyleCheck(AST) : BaseAnalyzerDmd
 		auto tokenText = to!string(lexer.token.ptr);
 
 		if (!matchFirst(tokenText, badDecimalRegex).empty || !matchFirst(tokenText, badBinaryRegex).empty)
-			addErrorMessage(intExpr.loc.linnum, intExpr.loc.charnum, KEY, MSG);
+			addErrorMessage([intExpr.loc.fileOffset, tokenAt(source, intExpr.loc.fileOffset).end], KEY, MSG);
 	}
 
 	private bool isIntegerLiteral(TOK token)
@@ -92,9 +93,12 @@ unittest
 			a = 10_00; // ok
 			a = 10_000; // ok
 			a = 100_000; // ok
-			a = 10000; // [warn]: Use underscores to improve number constant readability.
-			a = 100000; // [warn]: Use underscores to improve number constant readability.
-			a = 1000000; // [warn]: Use underscores to improve number constant readability.
+			a = 10000; /+
+			    ^^^^^ [warn]: Use underscores to improve number constant readability. +/
+			a = 100000; /+
+			    ^^^^^^ [warn]: Use underscores to improve number constant readability. +/
+			a = 1000000; /+
+			    ^^^^^^^ [warn]: Use underscores to improve number constant readability. +/
 		}
 	}c, sac);
 
