@@ -7,6 +7,7 @@ module dscanner.analysis.lambda_return_check;
 
 import dscanner.analysis.base;
 import dmd.tokens : Token, TOK;
+import dscanner.analysis.source_range : findToken;
 
 extern (C++) class LambdaReturnCheck(AST) : BaseAnalyzerDmd
 {
@@ -72,7 +73,7 @@ extern (C++) class LambdaReturnCheck(AST) : BaseAnalyzerDmd
 					.concat(AutoFix.replacement(start, start + 3, "", "Remove arrow (use function body)"));
 
 			addErrorMessage(
-				cast(ulong) lambda.loc.linnum, cast(ulong) lambda.loc.charnum, KEY, MSG,
+				[lambda.loc.fileOffset, findToken(source, start, TOK.leftCurly).end], KEY, MSG,
 				[fix0, AutoFix.insertionAt(start + 2, " ()")]
 			);
 		}
@@ -108,9 +109,12 @@ unittest
 		void main()
 		{
 			int[] b;
-			auto a = b.map!(a => { return a * a + 2; }).array(); // [warn]: %s
-			pragma(msg, typeof(a => { return a; })); // [warn]: %s
-			pragma(msg, typeof((a) => { return a; })); // [warn]: %s
+			auto a = b.map!(a => { return a * a + 2; }).array(); /+
+			                ^^^^^^ [warn]: %s +/
+			pragma(msg, typeof(a => { return a; })); /+
+			                   ^^^^^^ [warn]: %s +/
+			pragma(msg, typeof((a) => { return a; })); /+
+			                   ^^^^^^^^ [warn]: %s +/
 			pragma(msg, typeof({ return a; }));
 			pragma(msg, typeof(a => () { return a; }));
 			b.map!(a => a * 2);
