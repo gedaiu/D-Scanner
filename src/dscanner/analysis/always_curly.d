@@ -58,7 +58,7 @@ extern (C++) class AlwaysCurlyCheck(AST) : BaseAnalyzerDmd
 				string exprStr = to!string(toChars(stmtBody));
 
 				addErrorMessage(
-					node.loc.linnum, node.loc.charnum, KEY, msg,
+					bodyRange(stmtBody), KEY, msg,
 					[
 						AutoFix.insertionAt(stmtBody.loc.fileOffset, "{ ")
 							.concat(AutoFix.insertionAt(stmtBody.loc.fileOffset + indexOf(exprStr, ';'), " }"))
@@ -118,6 +118,15 @@ extern (C++) class AlwaysCurlyCheck(AST) : BaseAnalyzerDmd
 		inCurlyStatement = oldInCurlyStatement;
 	}
 
+	/// Range of a statement written without braces, up to its `;`.
+	extern (D) private size_t[2] bodyRange(AST.Statement statement)
+	{
+		import dscanner.analysis.source_range : findToken;
+		import dmd.tokens : TOK;
+
+		return [statement.loc.fileOffset, findToken(source, statement.loc.fileOffset, TOK.semicolon).end];
+	}
+
 	extern (D) private void checkStatement(AST.Statement statement, string statementName)
 	{
 		statement.accept(this);
@@ -125,7 +134,7 @@ extern (C++) class AlwaysCurlyCheck(AST) : BaseAnalyzerDmd
 		if (!hasCurlyBraces)
 		{
 			auto msg = statementName ~ MESSAGE_POSTFIX;
-			addErrorMessage(statement.loc.linnum, statement.loc.charnum, KEY, msg);
+			addErrorMessage(bodyRange(statement), KEY, msg);
 		}
 	}
 }
@@ -147,6 +156,14 @@ unittest
 			}
 
 			if (true) return; // [warn]: if must be follow by a BlockStatement aka. { }
+		}
+	}, sac);
+
+	assertAnalyzerWarningsDMD(q{
+		void testIf()
+		{
+			if(true) return; /+
+			         ^^^^^^^ [warn]: if must be follow by a BlockStatement aka. { } +/
 		}
 	}, sac);
 
