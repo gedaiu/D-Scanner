@@ -6,6 +6,7 @@
 module dscanner.analysis.enumarrayliteral;
 
 import dscanner.analysis.base;
+import dscanner.analysis.source_range : balancedEnd;
 
 extern (C++) class EnumArrayVisitor(AST) : BaseAnalyzerDmd
 {
@@ -32,7 +33,7 @@ extern (C++) class EnumArrayVisitor(AST) : BaseAnalyzerDmd
 			auto fileOffset = vd.loc.fileOffset - 5;
 
 			addErrorMessage(
-				cast(ulong) vd.loc.linnum, cast(ulong) vd.loc.charnum, KEY, message,
+				[vd._init.loc.fileOffset, balancedEnd(source, vd._init.loc.fileOffset, vd._init.loc.fileOffset)], KEY, message,
 				[AutoFix.replacement(fileOffset, fileOffset + 4, "static immutable", "Replace enum with static immutable")]
 			);
 		}
@@ -51,7 +52,8 @@ unittest
 	sac.enum_array_literal_check = Check.enabled;
 
 	assertAnalyzerWarningsDMD(q{
-		enum x = [1, 2, 3]; // [warn]: This enum may lead to unnecessary allocation at run-time. Use 'static immutable x = [ ...' instead.
+		enum x = [1, 2, 3]; /+
+		         ^^^^^^^^^ [warn]: This enum may lead to unnecessary allocation at run-time. Use 'static immutable x = [ ...' instead. +/
 	}c, sac);
 
 	assertAutoFix(q{
