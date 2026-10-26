@@ -6,6 +6,7 @@
 module dscanner.analysis.length_subtraction;
 
 import dscanner.analysis.base;
+import dscanner.analysis.source_range : extentOf;
 import dscanner.analysis.helpers;
 
 /**
@@ -34,7 +35,7 @@ extern (C++) class LengthSubtractionCheck(AST) : BaseAnalyzerDmd
 
 		if (left.ident.toString() == "length")
 			addErrorMessage(
-				cast(ulong) left.loc.linnum, cast(ulong) left.loc.charnum, KEY, MSG,
+				extentOf(source, minExpr), KEY, MSG,
 				[AutoFix.insertionAt(left.e1.loc.fileOffset, "cast(ptrdiff_t) ")]
 			);
 	}
@@ -51,7 +52,8 @@ unittest
 	assertAnalyzerWarningsDMD(q{
 		void testSizeT()
 		{
-			if (i < a.length - 1) // [warn]: Avoid subtracting from '.length' as it may be unsigned.
+			if (i < a.length - 1) /+
+			        ^^^^^^^^^^^^ [warn]: Avoid subtracting from '.length' as it may be unsigned. +/
 				writeln("something");
 		}
 	}c, sac);
