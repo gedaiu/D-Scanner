@@ -140,11 +140,11 @@ extern (C++) class StaticIfElse(AST) : BaseAnalyzerDmd
 					autofix2 = autofix2.concat(AutoFix.insertionAt(ifStmt.ifbody.loc.fileOffset, "\t"));
 				}
 
-				ulong[2] index = [cast(ulong) s.elsebody.loc.fileOffset - 5, cast(ulong) ifStmt.loc.fileOffset + 2];
-				ulong[2] lines = [cast(ulong) s.elsebody.loc.linnum, cast(ulong) ifStmt.loc.linnum];
-				ulong[2] columns = [cast(ulong) s.elsebody.loc.charnum, cast(ulong) ifStmt.loc.charnum + 2];
+				import std.string : stripRight;
+
+				const elseOffset = source[0 .. ifStmt.loc.fileOffset].stripRight.length - "else".length;
 				addErrorMessage(
-					index, lines, columns, KEY, MESSAGE,
+					[elseOffset, ifStmt.loc.fileOffset + "if".length], KEY, MESSAGE,
 					[AutoFix.insertionAt(ifStmt.loc.fileOffset, "static "), autofix2]
 				);
 			}
@@ -166,7 +166,8 @@ unittest
 		void foo() {
 			static if (false)
 				auto a = 0;
-			else if (true) // [warn]: Mismatched static if. Use 'else static if' here.
+			else if (true) /+
+			^^^^^^^ [warn]: Mismatched static if. Use 'else static if' here. +/
 				auto b = 1;
 		}
 	}c, sac);
