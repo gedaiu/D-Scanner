@@ -6,6 +6,7 @@
 module dscanner.analysis.trust_too_much;
 
 import dscanner.analysis.base;
+import dscanner.analysis.source_range : declarationStart, findIdentifier;
 import dmd.astenums : STC;
 
 /**
@@ -31,8 +32,11 @@ public:
 	override void visit(AST.StorageClassDeclaration scd)
 	{
 		if (scd.stc & STC.trusted)
-			addErrorMessage(cast(ulong) scd.loc.linnum, cast(ulong) scd.loc.charnum,
-					KEY, MESSAGE);
+		{
+			// with several attributes dmd may locate the declaration after `@trusted`
+			const trusted = findIdentifier(source, declarationStart(source, scd.loc.fileOffset), "trusted");
+			addErrorMessage([trusted.start - "@".length, trusted.end], KEY, MESSAGE);
+		}
 	
 			super.visit(scd);
 	}
@@ -40,30 +44,34 @@ public:
 
 unittest
 {
+	import dmd.astcodegen : ASTCodegen;
 	import dscanner.analysis.config : StaticAnalysisConfig, Check, disabledConfig;
 	import dscanner.analysis.helpers : assertAnalyzerWarnings = assertAnalyzerWarningsDMD;
-	import std.format : format;
+	import dmd.astcodegen : ASTCodegen;
 	import std.stdio : stderr;
+	import std.format : format;
 
 	StaticAnalysisConfig sac = disabledConfig();
 	sac.trust_too_much = Check.enabled;
-	const msg = "Trusting a whole scope is a bad idea, " ~
-		"`@trusted` should only be attached to the functions individually";
+	const msg = TrustTooMuchCheck!ASTCodegen.MESSAGE;
 
 	//--- fail cases ---//
 
 	assertAnalyzerWarnings(q{
-	@trusted: // [warn]: %s
+	@trusted: /+
+	^^^^^^^^ [warn]: %s +/
 		void test();
 	}c.format(msg), sac);
 
 	assertAnalyzerWarnings(q{
-	@trusted @nogc: // [warn]: %s
+	@trusted @nogc: /+
+	^^^^^^^^ [warn]: %s +/
 		void test();
 	}c.format(msg), sac);
 
 	assertAnalyzerWarnings(q{
-	@trusted { // [warn]: %s
+	@trusted { /+
+	^^^^^^^^ [warn]: %s +/
 		void test();
 		void test();
 	}
@@ -71,27 +79,31 @@ unittest
 
 	assertAnalyzerWarnings(q{
 	@safe {
-		@trusted @nogc { // [warn]: %s
+		@trusted @nogc { /+
+		^^^^^^^^ [warn]: %s +/
 		void test();
 		void test();
 	}}
 	}c.format(msg), sac);
 
 	assertAnalyzerWarnings(q{
-	@nogc @trusted { // [warn]: %s
+	@nogc @trusted { /+
+	      ^^^^^^^^ [warn]: %s +/
 		void test();
 		void test();
 	}
 	}c.format(msg), sac);
 
 	assertAnalyzerWarnings(q{
-	@trusted template foo(){ // [warn]: %s
+	@trusted template foo(){ /+
+	^^^^^^^^ [warn]: %s +/
 	}
 	}c.format(msg), sac);
 
 	assertAnalyzerWarnings(q{
 	struct foo{
-	@trusted:  // [warn]: %s
+	@trusted:  /+
+	^^^^^^^^ [warn]: %s +/
 	}
 	}c.format(msg), sac);
 	//--- pass cases ---//
