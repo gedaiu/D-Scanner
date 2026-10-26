@@ -32,8 +32,7 @@ extern (C++) class VcallCtorChecker(AST) : BaseAnalyzerDmd
     private static struct CallContext
     {
         string funcName;
-        ulong lineNum;
-        ulong charNum;
+        size_t[2] range;
     }
 
     private FuncContext[] contexts;
@@ -67,7 +66,7 @@ extern (C++) class VcallCtorChecker(AST) : BaseAnalyzerDmd
         import std.algorithm : each, filter;
 
         ctorCalls.filter!(call => call.funcName in virtualFuncs)
-            .each!(call => addErrorMessage(call.lineNum, call.charNum, KEY, MSG));
+            .each!(call => addErrorMessage(call.range, KEY, MSG));
     }
 
     override void visit(AST.VisibilityDeclaration visDecl)
@@ -163,7 +162,7 @@ extern (C++) class VcallCtorChecker(AST) : BaseAnalyzerDmd
             return;
 
         string funcCall = cast(string) identExp.ident.toString();
-        ctorCalls ~= CallContext(funcCall, callExp.loc.linnum, callExp.loc.charnum);
+        ctorCalls ~= CallContext(funcCall, [identExp.loc.fileOffset, identExp.loc.fileOffset + funcCall.length]);
     }
 
     private ref currentContext() @property
@@ -197,7 +196,8 @@ unittest
     assertAnalyzerWarningsDMD(q{
         class Bar
         {
-            this(){foo();} // [warn]: %s
+            this(){foo();} /+
+                   ^^^ [warn]: %s +/
             private:
             public void foo(){}
         }
@@ -208,8 +208,10 @@ unittest
         {
             this()
             {
-                foo(); // [warn]: %s
-                foo(); // [warn]: %s
+                foo(); /+
+                ^^^ [warn]: %s +/
+                foo(); /+
+                ^^^ [warn]: %s +/
                 bar();
             }
             private: void bar();
@@ -223,7 +225,8 @@ unittest
             this()
             {
                 foo();
-                bar(); // [warn]: %s
+                bar(); /+
+                ^^^ [warn]: %s +/
             }
             private: public void bar();
             private {void foo(){}}
