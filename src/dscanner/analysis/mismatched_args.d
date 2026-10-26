@@ -1,6 +1,7 @@
 module dscanner.analysis.mismatched_args;
 
 import dscanner.analysis.base;
+import dscanner.analysis.source_range : extentOf;
 import std.format : format;
 import dmd.arraytypes : ArgumentLabels;
 
@@ -78,7 +79,7 @@ extern (C++) class MismatchedArgumentCheck(AST) : BaseAnalyzerDmd
 					if (argIdx == paramIdx)
 						break;
 
-					addErrorMessage(callExpr.loc.linnum, callExpr.loc.charnum,KEY,
+					addErrorMessage(extentOf(source, (*callExpr.arguments)[argIdx]), KEY,
 						MSG.format(argIdx + 1, arg, paramIdx + 1));
 
 					return;
@@ -190,15 +191,19 @@ unittest
 		{
 			int x = 1;
 			int y = 2;
-			foo(y, x); // [warn]: Argument 2 is named 'x', but this is the name of parameter 1
-			foo(y + 1, x); // [warn]: Argument 2 is named 'x', but this is the name of parameter 1
+			foo(y, x); /+
+			       ^ [warn]: Argument 2 is named 'x', but this is the name of parameter 1 +/
+			foo(y + 1, x); /+
+			           ^ [warn]: Argument 2 is named 'x', but this is the name of parameter 1 +/
 			foo(y + 1, f(x));
 			foo(x: y, y: x);
-			foo(y, 0); // [warn]: Argument 1 is named 'y', but this is the name of parameter 2
+			foo(y, 0); /+
+			    ^ [warn]: Argument 1 is named 'y', but this is the name of parameter 2 +/
 
 			// foo(y: y, x); // TODO: this shouldn't error
 			foo(x, y: x); // TODO: this should error
-			foo(y, y: x); // [warn]: Argument 1 is named 'y', but this is the name of parameter 2
+			foo(y, y: x); /+
+			    ^ [warn]: Argument 1 is named 'y', but this is the name of parameter 2 +/
 		}
 	}c, sac);
 
