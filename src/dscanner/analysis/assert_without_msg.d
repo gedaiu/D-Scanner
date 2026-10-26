@@ -5,6 +5,8 @@
 module dscanner.analysis.assert_without_msg;
 
 import dscanner.analysis.base;
+import dscanner.analysis.source_range : balancedEnd, extentOf, findToken;
+import dmd.tokens : TOK;
 import std.stdio;
 
 /**
@@ -33,13 +35,17 @@ extern(C++) class AssertWithoutMessageCheck(AST) : BaseAnalyzerDmd
 	override void visit(AST.AssertExp ae)
 	{
 		if (!ae.msg)
-			addErrorMessage(ae.loc.linnum, ae.loc.charnum, KEY, MESSAGE);
+			addErrorMessage(extentOf(source, ae), KEY, MESSAGE);
 	}
 
 	override void visit(AST.StaticAssert ae)
 	{
 		if (!ae.msgs)
-			addErrorMessage(ae.loc.linnum, ae.loc.charnum, KEY, MESSAGE);
+		{
+			const assertStart = findToken(source, ae.loc.fileOffset, TOK.assert_).start;
+			const parenthesis = findToken(source, assertStart, TOK.leftParenthesis).start;
+			addErrorMessage([assertStart, balancedEnd(source, parenthesis, parenthesis)], KEY, MESSAGE);
+		}
 	}
 
 
@@ -60,14 +66,16 @@ unittest
 	assertAnalyzerWarningsDMD(q{
 	unittest {
 		assert(0, "foo bar");
-		assert(0); // [warn]: An assert should have an explanatory message
+		assert(0); /+
+		^^^^^^^^^ [warn]: An assert should have an explanatory message +/
 	}
 	}c, sac);
 
 	assertAnalyzerWarningsDMD(q{
 	unittest {
 		static assert(0, "foo bar");
-		static assert(0); // [warn]: An assert should have an explanatory message
+		static assert(0); /+
+		       ^^^^^^^^^ [warn]: An assert should have an explanatory message +/
 	}
 	}c, sac);
 
