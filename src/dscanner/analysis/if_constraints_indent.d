@@ -75,7 +75,18 @@ extern (C++) class IfConstraintsIndentCheck(AST) : BaseAnalyzerDmd
 		uint constraintCol = constraintToken.loc.charnum;
 
 		if (templateLine == constraintLine || templateCol != constraintCol)
-			addErrorMessage(cast(ulong) constraintLine, cast(ulong) constraintCol, KEY, MSG);
+		{
+			import std.string : lastIndexOf;
+
+			import std.string : strip;
+
+			// an `if` starting its own line is reported from the indentation before it
+			const ifStart = constraintToken.loc.fileOffset;
+			const lineStart = source[0 .. ifStart].lastIndexOf('\n') + 1;
+			const startsLine = source[lineStart .. ifStart].strip.length == 0;
+			const start = startsLine && ifStart > lineStart ? ifStart - 1 : ifStart;
+			addErrorMessage([start, ifStart + "if".length], KEY, MSG);
+		}
 	}
 }
 
@@ -96,7 +107,8 @@ if (R == null)
 {}
 
 void foo(R)(R r)
-	if (R == null) // [warn]: %s
+	if (R == null) /+
+^^^ [warn]: %s +/
 {}
 	}c.format(MSG), sac);
 
@@ -106,11 +118,13 @@ void foo(R)(R r)
 	{}
 
 	void foo(R)(R r)
-if (R == null) // [warn]: %s
+if (R == null) /+
+^^ [warn]: %s +/
 	{}
 
 	void foo(R)(R r)
-		if (R == null) // [warn]: %s
+		if (R == null) /+
+	^^^ [warn]: %s +/
 	{}
 	}c.format(MSG, MSG), sac);
 
@@ -120,11 +134,13 @@ if (R == null) // [warn]: %s
 	{}
 
 	struct Foo(R)
-if (R == null) // [warn]: %s
+if (R == null) /+
+^^ [warn]: %s +/
 	{}
 
 	struct Foo(R)
-		if (R == null) // [warn]: %s
+		if (R == null) /+
+	^^^ [warn]: %s +/
 	{}
 	}c.format(MSG, MSG), sac);
 
@@ -155,7 +171,8 @@ if (is(typeof(Num.init >= 0)) && is(typeof(-Num.init)) &&
 	{}
 
 	struct Foo(R)
-if // [warn]: %s
+if /+
+^^ [warn]: %s +/
 	(R == null)
 	{}
 
@@ -171,14 +188,16 @@ if // [warn]: %s
 	{}
 
 	struct Foo(R)
-		if ( // [warn]: %s
+		if ( /+
+	^^^ [warn]: %s +/
 		R == null
 	) {}
 	}c.format(MSG, MSG), sac);
 
 	// constraint on the same line
 	assertAnalyzerWarningsDMD(q{
-	struct CRC(uint N, ulong P) if (N == 32 || N == 64) // [warn]: %s
+	struct CRC(uint N, ulong P) if (N == 32 || N == 64) /+
+	                            ^^ [warn]: %s +/
 	{}
 	}c.format(MSG), sac);
 
