@@ -22,8 +22,7 @@ extern (C++) class UnusedVariableCheck(AST) : BaseAnalyzerDmd
 	private static struct VarInfo
 	{
 		string name;
-		ulong lineNum;
-		ulong charNum;
+		size_t[2] range;
 		bool isUsed = false;
 	}
 
@@ -101,7 +100,7 @@ extern (C++) class UnusedVariableCheck(AST) : BaseAnalyzerDmd
 			string varName = cast(string) varDeclaration.ident.toString();
 			bool isAggregateField = inAggregate && !inFunction;
 			bool ignore = isAggregateField || shouldIgnoreDecls || varName.all!(c => c == '_');
-			currentScope[varName] = VarInfo(varName, varDeclaration.loc.linnum, varDeclaration.loc.charnum, ignore);
+			currentScope[varName] = VarInfo(varName, identifierRange(varDeclaration.loc.fileOffset, varName), ignore);
 		}
 	}
 
@@ -127,7 +126,7 @@ extern (C++) class UnusedVariableCheck(AST) : BaseAnalyzerDmd
 			string varName = cast(string) templateDecl.ident.toString();
 			bool isAggregateField = inAggregate && !inFunction;
 			bool ignore = isAggregateField || shouldIgnoreDecls || varName.all!(c => c == '_');
-			currentScope[varName] = VarInfo(varName, templateDecl.loc.linnum, templateDecl.loc.charnum, ignore);
+			currentScope[varName] = VarInfo(varName, identifierRange(templateDecl.loc.fileOffset, varName), ignore);
 		}
 	}
 
@@ -253,7 +252,7 @@ extern (C++) class UnusedVariableCheck(AST) : BaseAnalyzerDmd
 
 		// Workaround for gdc-12
 		VarSet newScope;
-		newScope["test"] = VarInfo("test", 0, 0);
+		newScope["test"] = VarInfo("test", [0, 0]);
 		usedVars ~= newScope;
 		currentScope.remove("test");
 	}
@@ -264,7 +263,7 @@ extern (C++) class UnusedVariableCheck(AST) : BaseAnalyzerDmd
 
 		currentScope.byValue
 			.filter!(var => !var.isUsed)
-			.each!(var => addErrorMessage(var.lineNum, var.charNum, KEY, MSG.format(var.name)));
+			.each!(var => addErrorMessage(var.range, KEY, MSG.format(var.name)));
 
 		usedVars.length--;
 	}
@@ -290,7 +289,8 @@ extern (C++) class UnusedVariableCheck(AST) : BaseAnalyzerDmd
 
 	unittest
 	{
-		int a; // [warn]: Variable a is never used.
+		int a; /+
+		    ^ [warn]: Variable a is never used. +/
 	}
 
 	// Issue 380
@@ -303,7 +303,8 @@ extern (C++) class UnusedVariableCheck(AST) : BaseAnalyzerDmd
 	// Issue 380
 	int otherTemplatedEnum()
 	{
-		auto a(T) = T.init; // [warn]: Variable a is never used.
+		auto a(T) = T.init; /+
+		     ^ [warn]: Variable a is never used. +/
 		return 0;
 	}
 
