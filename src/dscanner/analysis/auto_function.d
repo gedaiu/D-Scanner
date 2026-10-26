@@ -44,9 +44,6 @@ extern (C++) class AutoFunctionChecker(AST) : BaseAnalyzerDmd
 		if (d.storage_class & STC.disable || d.fbody is null || (d.fbody && d.fbody.isReturnStatement()))
 			return;
 
-		ulong lineNum = cast(ulong) d.loc.linnum;
-		ulong charNum = cast(ulong) d.loc.charnum;
-
 		auto oldFoundReturn = foundReturn;
 		auto oldFoundFalseAssert = foundFalseAssert;
 
@@ -58,12 +55,13 @@ extern (C++) class AutoFunctionChecker(AST) : BaseAnalyzerDmd
 		{
 			if (d.storage_class & STC.auto_)
 			{
-				auto voidStart = extractVoidStartLocation(d);
+				import std.string : lastIndexOf;
 
+				const autoStart = source[0 .. d.loc.fileOffset].lastIndexOf("auto");
 				addErrorMessage(
-					lineNum, charNum, KEY, MESSAGE,
+					[autoStart, autoStart + "auto".length], KEY, MESSAGE,
 					[
-						AutoFix.replacement(voidStart + 1, voidStart + 6, "", "Replace `auto` with `void`")
+						AutoFix.replacement(autoStart, autoStart + "auto ".length, "", "Replace `auto` with `void`")
 							.concat(AutoFix.insertionAt(d.loc.fileOffset, "void "))
 					]
 				);
@@ -72,8 +70,11 @@ extern (C++) class AutoFunctionChecker(AST) : BaseAnalyzerDmd
 			{
 				if (returnType.next is null)
 				{
+					import std.string : stripRight;
+
+					const attributesEnd = source[0 .. d.loc.fileOffset].stripRight.length;
 					addErrorMessage(
-						lineNum, charNum, KEY, MESSAGE_INSERT,
+						[attributesEnd, attributesEnd + 1], KEY, MESSAGE_INSERT,
 						[AutoFix.insertionAt(d.loc.fileOffset, "void ")]
 					);
 				}
@@ -82,23 +83,6 @@ extern (C++) class AutoFunctionChecker(AST) : BaseAnalyzerDmd
 
 		foundReturn = oldFoundReturn;
 		foundFalseAssert = oldFoundFalseAssert;
-	}
-
-	private auto extractVoidStartLocation(AST.FuncDeclaration d)
-	{
-		import dmd.common.outbuffer : OutBuffer;
-		import dmd.hdrgen : toCBuffer, HdrGenState;
-		import std.string : indexOf;
-
-		OutBuffer buf;
-		HdrGenState hgs;
-		toCBuffer(d, buf, hgs);
-		string funcStr = cast(string) buf.extractSlice();
-		string funcName = cast(string) d.ident.toString();
-		auto funcNameStart = funcStr.indexOf(funcName);
-		auto voidTokenStart = funcStr.indexOf("void");
-		auto voidOffset = funcNameStart - voidTokenStart;
-		return d.loc.fileOffset - voidOffset;
 	}
 
 	override void visit(AST.ReturnStatement s)
@@ -164,46 +148,58 @@ unittest
 	string MESSAGE_INSERT = "Auto function without return statement, prefer inserting void to be explicit";
 
 	assertAnalyzerWarningsDMD(q{
-		auto ref doStuff(){} // [warn]: %s
-		auto doStuff(){} // [warn]: %s
+		auto ref doStuff(){} /+
+		^^^^ [warn]: %s +/
+		auto doStuff(){} /+
+		^^^^ [warn]: %s +/
 		@Custom
-		auto doStuff(){} // [warn]: %s
-		int doStuff(){auto doStuff(){}} // [warn]: %s
+		auto doStuff(){} /+
+		^^^^ [warn]: %s +/
+		int doStuff(){auto doStuff(){}} /+
+		              ^^^^ [warn]: %s +/
 		auto doStuff(){return 0;}
 		int doStuff(){/*error but not the aim*/}
 	}c.format(MESSAGE, MESSAGE, MESSAGE, MESSAGE), sac);
 
 	assertAnalyzerWarningsDMD(q{
-		auto doStuff(){assert(true);} // [warn]: %s
+		auto doStuff(){assert(true);} /+
+		^^^^ [warn]: %s +/
 		auto doStuff(){assert(false);}
 	}c.format(MESSAGE), sac);
 
 	assertAnalyzerWarningsDMD(q{
-		auto doStuff(){assert(1);} // [warn]: %s
+		auto doStuff(){assert(1);} /+
+		^^^^ [warn]: %s +/
 		auto doStuff(){assert(0);}
 	}c.format(MESSAGE), sac);
 
 	assertAnalyzerWarningsDMD(q{
-		auto doStuff(){mixin("0+0");} // [warn]: %s
+		auto doStuff(){mixin("0+0");} /+
+		^^^^ [warn]: %s +/
 		auto doStuff(){mixin("return 0;");}
 	}c.format(MESSAGE), sac);
 
 	assertAnalyzerWarningsDMD(q{
-		auto doStuff(){mixin("0+0");} // [warn]: %s
+		auto doStuff(){mixin("0+0");} /+
+		^^^^ [warn]: %s +/
 		auto doStuff(){mixin("static if (true)" ~ "  return " ~ 0.stringof ~ ";");}
 	}c.format(MESSAGE), sac);
 
 	assertAnalyzerWarningsDMD(q{
-		auto doStuff(){} // [warn]: %s
+		auto doStuff(){} /+
+		^^^^ [warn]: %s +/
 	}c.format(MESSAGE), sac);
 
 	assertAnalyzerWarningsDMD(q{
-		auto doStuff(){} // [warn]: %s
+		auto doStuff(){} /+
+		^^^^ [warn]: %s +/
 	}c.format(MESSAGE), sac);
 
 	assertAnalyzerWarningsDMD(q{
-		@property doStuff(){} // [warn]: %s
-		@safe doStuff(){} // [warn]: %s
+		@property doStuff(){} /+
+		         ^ [warn]: %s +/
+		@safe doStuff(){} /+
+		     ^ [warn]: %s +/
 		@safe void doStuff();
 	}c.format(MESSAGE_INSERT, MESSAGE_INSERT), sac);
 
